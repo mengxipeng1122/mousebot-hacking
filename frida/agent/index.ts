@@ -63,12 +63,17 @@ const hook_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
                     const s2 = get_std_string(mod, args[2]);
                     const s3 = get_std_string(mod, args[3]);
                     console.log(tstr, `s1: ${s1}, s2: ${s2}, s3: ${s3}`);
+
+                    const data = thiz.args4;
+                    MyFrida.dumpMemory(data, );
                     
                 },
                 leaveFun(retval, tstr, thiz) {
                     console.log(tstr, `retval: ${retval}`);
+                    const data = thiz.args4;
                     const hash = thiz.args5.readU32();
                     const type = thiz.args6.readU16();
+                    MyFrida.dumpMemory(data, );
                     console.log(tstr, `hash: ${ptr(hash)}, type: ${type}`);
                 }
             }

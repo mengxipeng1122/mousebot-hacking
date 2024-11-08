@@ -33,9 +33,25 @@ int test_VuAssetFactory() {
     for (auto& [key, value] : basePackFileMap) {
         auto& assetInfo = value;
         LOG_INFOS("basePackFileMap: %s ", key.c_str());
-        _frida_hexdump((void*)&assetInfo, sizeof(assetInfo));
-        auto* pOriginalData = assetInfo.pOriginalData;
-        LOG_INFOS("pOriginalData: %p", pOriginalData);
+
+        std::string full_path = key;
+        std::string type_name = full_path.substr(0, full_path.find('/'));
+        std::string file_name = full_path.substr(full_path.find('/') + 1);
+        LOG_INFOS("type_name: %s, file_name: %s", type_name.c_str(), file_name.c_str());
+
+        VuArray<unsigned char> data;
+        unsigned int hash;
+        unsigned short type;
+        auto success = mpAssetDB->basePackFileReader.read(type_name, file_name, "", data, hash, type);
+        LOG_INFOS("success: %d", success);
+        if (success) {
+
+            LOG_INFOS("data: %zu bytes, hash: %x, type: %d", data.mSize, hash, type);
+        }
+
+        // _frida_hexdump((void*)&assetInfo, sizeof(assetInfo));
+        // auto* pOriginalData = assetInfo.pOriginalData;
+        // LOG_INFOS("pOriginalData: %p", pOriginalData);
     }
 
     auto& subPackFileMap = mpAssetDB->subPackFileReader.mPackFileMap;

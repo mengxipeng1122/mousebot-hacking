@@ -3,6 +3,18 @@
 
 
 
+template<typename T>
+struct VuArray {
+    T* pData;
+    unsigned int mSize;
+    unsigned int mCapacity;
+
+    VuArray() {
+        pData = nullptr;
+        mSize = 0;
+        mCapacity = 0;
+    }
+};
 
 
 struct VuAssetInfo {
@@ -22,6 +34,16 @@ struct VuAssetPackFileReader {
     std::map<std::string, VuAssetInfo> mPackFileMap;
 #endif
     unsigned char _0x30[0x8];
+
+#ifdef _GHIDRA
+#else 
+    bool read( std::string const& type_str, 
+        std::string const& name_str, 
+        std::string const& lang_str, 
+        VuArray<unsigned char>& data, 
+        unsigned int& hash, unsigned short& type);
+
+#endif
 };
 
 struct VuAssetDB {
