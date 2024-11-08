@@ -2,7 +2,7 @@
 #pragma once
 
 
-
+#ifndef _GHIDRA
 template<typename T>
 struct VuArray {
     T* pData;
@@ -14,11 +14,22 @@ struct VuArray {
         mSize = 0;
         mCapacity = 0;
     }
+
+    ~VuArray() {
+        if (pData) {
+            delete[] pData;
+            pData = nullptr;
+        }
+    }
 };
+#endif
 
 
-// VuAssetFactory::loadAsset(VuAssetTypeInfo const*, VuAssetEntry const*, VuAsset*)
-// VuAssetFactory::createAsset(std::string const&, std::string const&, int)
+struct VuBinaryDataReader {
+    unsigned char* pData;
+    unsigned int mSize;
+    unsigned int mPos;
+};
 
 
 struct VuAssetInfo {
@@ -69,5 +80,17 @@ struct VuAssetFactory {
     static VuAssetFactory* mpInterface;
 #endif
 };
+
+struct VuOglesTexture {
+#ifndef _GHIDRA
+    static int load(VuBinaryDataReader& reader, int type);
+#endif
+};
+
+// _ZN18VuBakedProjectData11deserializeER18VuBinaryDataReader
+// VuBakedProjectData::deserialize(VuBinaryDataReader&)
+
+// _ZN12VuJsonWriter12saveToStringERK15VuJsonContainerj
+// VuJsonWriter::saveToString(VuJsonContainer const&, int)
 
 
