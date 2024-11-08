@@ -1,0 +1,16 @@
+{
+  "name": "root",
+  "private": true,
+  "workspaces": [
+    "frida",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build -w web",
+    "dev": "npm run dev -w web", 
+    "test": "npm run test -w web"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
