@@ -17,6 +17,10 @@ struct VuArray {
 };
 
 
+// VuAssetFactory::loadAsset(VuAssetTypeInfo const*, VuAssetEntry const*, VuAsset*)
+// VuAssetFactory::createAsset(std::string const&, std::string const&, int)
+
+
 struct VuAssetInfo {
     unsigned char _0x00[0x30];
     unsigned char* pOriginalData;
@@ -52,12 +56,16 @@ struct VuAssetDB {
     VuAssetPackFileReader subPackFileReader;
 };
 
+struct VuAsset {
+};
+
 struct VuAssetFactory {
     unsigned char _0x00[0x68];
     VuAssetDB* mpAssetDB;
 #ifdef _GHIDRA    
 #else 
     bool isPackFileOpen();
+    VuAsset* createAsset(std::string const& type_str, std::string const& name_str, int type);
     static VuAssetFactory* mpInterface;
 #endif
 };
