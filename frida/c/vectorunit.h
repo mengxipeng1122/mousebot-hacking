@@ -1,6 +1,11 @@
 
 #pragma once
 
+// assets type
+
+enum {
+    ASSET_TYPE_DB=3,
+};
 
 #ifndef _GHIDRA
 template<typename T>
@@ -86,6 +91,35 @@ struct VuOglesTexture {
     static int load(VuBinaryDataReader& reader, int type);
 #endif
 };
+
+
+struct VuJsonContainer {
+    unsigned char _0x00[0x20];
+#ifdef _GHIDRA
+#else  
+    VuJsonContainer() {memset(this, 0, sizeof(VuJsonContainer));}
+    VuJsonContainer& operator=(VuJsonContainer const&);
+    void clear();
+#endif
+};
+
+
+struct VuJsonReader {
+#ifdef _GHIDRA
+#else 
+    static void deserialize(VuJsonContainer&, void const*, int);
+    static void deserialize(VuJsonContainer&, VuBinaryDataReader&);
+#endif
+};
+
+struct VuJsonWriter {
+#ifdef _GHIDRA
+#else 
+    static void saveToString(VuJsonContainer const&, std::string&, unsigned int);
+//    static std::string saveToString(VuJsonContainer const&, unsigned int);
+#endif
+};
+
 
 // _ZN18VuBakedProjectData11deserializeER18VuBinaryDataReader
 // VuBakedProjectData::deserialize(VuBinaryDataReader&)

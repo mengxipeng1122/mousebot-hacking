@@ -6,6 +6,9 @@
 #include "utils.h"
 #include "vectorunit.h"
 
+// This function retrieves a function pointer from a vtable at a specified index.
+// It takes a void pointer to an object and an integer index as parameters.
+// The function returns a function pointer of type T.
 template<typename T>
 T get_vtable_func(void* pobj, int index) {
     void* ptab = *(void**)pobj;
@@ -13,6 +16,9 @@ T get_vtable_func(void* pobj, int index) {
     return (T)pfunc;
 }
 
+// This function retrieves the type name of the object pointed to by 'p'.
+// It first accesses the vtable of the object, then retrieves the type_info pointer
+// from the vtable, and finally returns the name of the type.
 const char* get_type_name(void* p) {
     auto* ptab = *(void**)p;
     auto* pinfo = ((void**)ptab)[-1];
@@ -132,13 +138,64 @@ int load_VuAsset(const char* name) {
         return -1;
     }
     LOG_INFOS("data: %zu bytes, hash: %x, type: %d", data.mSize, hash, type);
+    _frida_hexdump((void*)data.pData, 0x20);   
+
+    VuBinaryDataReader reader;
+    reader.pData = data.pData;
+    reader.mSize = data.mSize;
+    reader.mPos = 0x8;
+
+    VuJsonContainer container;
+    VuJsonReader::deserialize(container, reader);
+    _frida_hexdump((void*)&container, 0x20);   
+
+    std::string out_str("");
+    VuJsonWriter::saveToString(container, out_str, 1);
+    LOG_INFOS("out_str: %s", out_str.c_str());
+    _frida_hexdump((void*)&out_str, 0x20);
+
+
+    container.clear();
 
     return 0;
 }
 
 extern "C" __attribute__((visibility("default")))
+int test_parse_binary_json(unsigned char* pData, int size) {
+
+    VuBinaryDataReader reader;
+    reader.pData = pData;
+    reader.mSize = size;
+    reader.mPos = 0x0;
+
+    _frida_hexdump((void*)pData, 0x80);
+
+    VuJsonContainer container;
+    VuJsonReader::deserialize(container, reader);
+    _frida_hexdump((void*)&container, 0x20);   
+
+    {
+        auto* p = ((void**)&container)[1];
+        _frida_hexdump(p, 0x20);   
+    }
+
+    LOG_INFOS("Address of VuJsonWriter::saveToString: %p", &VuJsonWriter::saveToString);
+    std::string out_str("");
+    VuJsonWriter::saveToString(container, out_str, 2);
+    LOG_INFOS("out_str: %s", out_str.c_str());
+
+    // std::string out_str2 = VuJsonWriter::saveToString(container, 2);
+    // LOG_INFOS("out_str2: %s", out_str2.c_str());
+
+    container.clear();
+
+    return 0;
+}
+extern "C" __attribute__((visibility("default")))
 int init() {
     LOG_INFOS("[+]init");
+    // load_VuAsset("VuDBAsset/BillingDB");
+    //load_VuAsset("VuTemplateAsset/UI/Button_GenericC_SmallBlue");
     // test_VuAssetFactory();
     LOG_INFOS("[-]init");
     return 0;
