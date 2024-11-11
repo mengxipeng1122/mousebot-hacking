@@ -1,0 +1,101 @@
+
+import "ts-frida"
+import {mod as libblueinfo} from './modinfos/libblue.js'
+
+const soname = "libBlue.so"
+
+type HOOK_TYPE = {
+    p: NativePointer,
+    name: string,
+    opts: MyFrida.HookFunActionOptArgs,
+}
+
+const parse_vu_array_unsigned_char = (mod: MyFrida.PATHLIB_INFO_TYPE, arr: NativePointer) : ArrayBuffer | null => {
+    let bs : ArrayBuffer | null = null;
+    let cb  = new NativeCallback((p:NativePointer, len:number) => {
+        bs = p.readByteArray(len)
+    }, 'void', ['pointer', 'int']);
+    const fn = new NativeFunction(mod.symbols.parse_vu_array_unsigned_char, 'void', ['pointer', 'pointer'])
+    fn(arr, cb)
+    return bs;
+}
+
+const parse_std_string = (mod: MyFrida.PATHLIB_INFO_TYPE, str: NativePointer) : string | null => {
+    let s : string | null = null;
+    let cb  = new NativeCallback((p:NativePointer) => {
+        s = p.readUtf8String();
+    }, 'void', ['pointer']);
+
+    const fn = new NativeFunction(mod.symbols.parse_std_string, 'void', ['pointer', 'pointer'])
+    fn(str, cb)
+    return s;
+}
+
+const load_patchlib = ()=>{
+    const mod = libblueinfo.load('/data/local/tmp/libblue.so',[
+        soname
+    ],{
+        ... MyFrida.frida_symtab,
+    });
+
+    if(mod.symbols.init) {
+        new NativeFunction(mod.symbols.init, 'int', [])()
+    }
+    return mod
+}
+
+const patch_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
+}
+
+const hook_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
+
+    const hooks: HOOK_TYPE[] = [    
+        {
+            p: Module.getExportByName(soname, '_ZN21VuAssetPackFileReader4readEPKcRKSsS3_RjS4_R7VuArrayIhE'),
+            name: 'VuAssetPackFileReader::read(const char*, std::string const&, std::string const&, unsigned int&, unsigned int&, std::vector<unsigned char>const',
+            opts: {
+                nparas: 8,
+                hide: true,
+                enterFun(args, tstr, thiz) {
+                },
+                leaveFun(args, tstr, thiz) {
+                    const type_type = thiz.args1.readUtf8String();
+                    const type_name = parse_std_string(mod, thiz.args2)
+                    const type_lang = parse_std_string(mod, thiz.args3)
+                    const type = thiz.args4.readU32()
+                    const crc = thiz.args5.readU32()
+                    const arr = parse_vu_array_unsigned_char(mod, thiz.args6)
+                    console.log(tstr, `${type_type}/${type_name} ${type_lang} type: ${type}, crc: ${crc} ${arr?.byteLength}`)
+                }
+            }
+        },
+    ];
+
+    [
+        ...hooks,
+    ].forEach((hook: HOOK_TYPE) => {
+        console.log(`hook ${JSON.stringify(hook)}`)
+        const {p, name, opts} = hook
+        MyFrida.HookAction.addInstance(p, new MyFrida.HookFunAction({...opts,name}));
+    })
+
+}
+
+const explore_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
+
+}
+
+
+const entry = () => {
+
+    const mod = load_patchlib()
+
+    patch_game(mod)
+
+    hook_game(mod)
+
+    explore_game(mod)
+}
+
+console.log("########################################")
+Java.perform(entry)
