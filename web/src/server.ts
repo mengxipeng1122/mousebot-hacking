@@ -10,6 +10,8 @@ const app = express();
 const port = 3000;
 const app_name = 'Riptide GP';
 
+const fridaScriptFile = path.join(__dirname, '..', '..', 'frida', '_agent.js');
+
 
 async function connect_frida() {
   // Functions to be called from Frida script
@@ -22,16 +24,7 @@ async function connect_frida() {
       const device = await frida.getUsbDevice();
       console.log('Connected to device:', device.name);
 
-      const scriptFile = path.join(__dirname, '..', '..', 'frida', '_agent.js');
-
-      const scriptContent = fs.readFileSync(scriptFile, 'utf8');
-
-
-      //         // Export functions to be called from TypeScript
-      //         rpc.exports = {
-      //             getversion: getAppVersion,
-      //             checkroot: isDeviceRooted
-      //         };
+      const scriptContent = fs.readFileSync(fridaScriptFile, 'utf8');
 
       // Get running processes
       const processes = await device.enumerateProcesses();
@@ -81,56 +74,37 @@ async function connect_frida() {
           }
       }
 
-// Add API endpoint for getting assets
-app.get('/api/asset', async (req, res) => {
-    try {
-        const { assetType, assetName, assetLang } = req.query;
-        
-        if (!assetType || !assetName) {
-            return res.status(400).json({ error: 'Missing required parameters' });
+      // Add API endpoint for getting assets
+      app.get('/api/asset', async (req, res) => {
+          try {
+            const { assetType, assetName, assetLang } = req.query;
+            
+            if (!assetType || !assetName) {
+                return res.status(400).json({ error: 'Missing required parameters' });
+            }
+
+            const binary = await handleAssetDownload(
+                assetType as string, 
+                assetName as string, 
+                (assetLang as string) || ''
+            );
+
+            if (!binary) {
+                return res.status(404).json({ error: 'Asset not found' });
+            }
+
+            // Send binary data as response
+            res.set('Content-Type', 'application/octet-stream');
+            res.send(Buffer.from(binary));
+
+        } catch (error) {
+            console.error('Error in /api/asset:', error);
+            res.status(500).json({ error: 'Internal server error' });
         }
+      });
 
-        const binary = await handleAssetDownload(
-            assetType as string, 
-            assetName as string, 
-            (assetLang as string) || ''
-        );
-
-        if (!binary) {
-            return res.status(404).json({ error: 'Asset not found' });
-        }
-
-        // Send binary data as response
-        res.set('Content-Type', 'application/octet-stream');
-        res.send(Buffer.from(binary));
-
-    } catch (error) {
-        console.error('Error in /api/asset:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-      // Add socket handler for asset downloads
-      // io.on('connection', (socket) => {
-      //     socket.on('download_asset', async (data) => {
-      //       const assetType = data.asset_type;
-      //       const assetName = data.asset_name;
-      //       const assetLang = data.asset_lang;
-      //       const binary = await handleAssetDownload(assetType, assetName, assetLang);
-      //       if (binary) {
-      //           socket.emit('asset_binary', {
-      //               assetType,
-      //               assetName,
-      //               assetLang,
-      //               binary: binary
-      //           });
-      //       }
-      //     });
-      // });
-      // const version = await script.exports.getversion();
-      const sum = await script.exports.add(5 as any, 3 as any);
-      console.log('5 + 3 =', sum);
-      // const isRooted = await script.exports.checkroot();
+    const ret = await script.exports.init();
+    console.log('init:', ret);
 
   } catch (error) {
       console.error('Error:', error);
@@ -141,8 +115,19 @@ app.get('/api/asset', async (req, res) => {
 // Serve static files from the dist/public directory instead of src/public
 app.use(express.static(path.join(__dirname, '..', 'dist', 'public')));
 
+// Function to monitor changes and reconnect Frida
+function monitorFridaScript() {
+  fs.watch(fridaScriptFile, (eventType, filename) => {
+    if (eventType === 'change') {
+      console.log(`Detected change in ${filename}, reconnecting Frida...`);
+      connect_frida();
+    }
+  });
+}
 
+// Initial connect and start monitoring
 connect_frida();
+monitorFridaScript();
 
 // Set up Socket.IO
 const httpServer = createServer(app);

@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // add socket.io client
     const socket = io();    
     socket.on('asset_read', (data) => {
-        // console.log('Asset read:', JSON.stringify(data, null, 2));
+        const { asset_type, asset_name, asset_lang } = data;
         const log = document.getElementById('log');
         if (log) {
             const row = document.createElement('tr');
@@ -24,8 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
             download.addEventListener('click', () => {
                 // download the asset
                 console.log('Downloading asset:', data);
-                const url = `/api/asset?assetType=${data.asset_type}&assetName=${data.asset_name}&assetLang=${data.asset_lang}`;
-                const { asset_type, asset_name, asset_lang } = data;
+                const url = `/api/asset?assetType=${asset_type}&assetName=${asset_name}&assetLang=${asset_lang}`;
                 const filename = (asset_lang&&asset_lang.length>0 ) ?
                    `${asset_type}_${asset_name}.${asset_lang}.bin`:
                    `${asset_type}_${asset_name}.bin`;
@@ -41,26 +40,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         a.click();
                     });
 
-                // socket.emit('download_asset', data);
-
-                // socket.on('asset_binary', (data) => {
-                //     console.log('Asset binary:', data.binary.byteLength);
-                //     // download the asset
-                //     const blob = new Blob([data.binary], { type: 'application/octet-stream' });
-                //     const url = URL.createObjectURL(blob);
-                //     const a = document.createElement('a');
-                //     a.href = url;
-                //     const { assetType, assetName, assetLang } = data;
-                //     const filename = (assetLang&&assetLang.length>0 ) ?
-                //         `${assetType}_${assetName}.${assetLang}.bin`:
-                //         `${assetType}_${assetName}.bin`;
-                //     a.download = filename;
-                //     a.click();
-                // });
-
-
             });
             row.appendChild(download);
+
+
+            // add a button to show the asset 
+            const show = document.createElement('button');
+            show.textContent = 'Show';
+            show.addEventListener('click', () => {
+                if (['VuProjectAsset', 
+                    ].includes(asset_type)) {
+                    console.log('Showing asset:', data);
+                }
+                else {
+                    alert(`Cannot show asset ${asset_type}`);
+                }
+            });
+            row.appendChild(show);
         }
 
         // clear button

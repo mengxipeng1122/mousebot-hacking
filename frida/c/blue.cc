@@ -99,7 +99,7 @@ int listAllAssets()
 
 extern "C" __attribute__((visibility("default"))) int init() {
     LOG_INFOS("init");
-    listAllAssets();
+    LOG_INFOS("Hello from frida c");
     LOG_INFOS("init end");
     return 0;
 }

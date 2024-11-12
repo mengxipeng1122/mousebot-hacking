@@ -68,8 +68,9 @@ const load_patchlib = ()=>{
 
     rpc.exports = {
         // Add two numbers and return result
-        add: function(a, b) {
-            return a + b;
+        init: function(a, b) {
+            console.log(`init: ${a} ${b}`)
+            return  "Hello from frida ts"
         },
 
         get_asset_binary,
@@ -117,18 +118,18 @@ const hook_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
                         }
                     });
 
-                    if(asset_type && ['VuProjectAsset' ].includes(asset_type) ) {
-                        if (mod.symbols.parse_binary_json) {
-                            const p = thiz.args6.readPointer()
-                            const len = p.readU32()
-                            new NativeFunction(
-                                mod.symbols.parse_binary_json, 
-                                'void', ['pointer', 'int'])(
-                                    p.add(4),
-                                    len
-                                );
-                        }
-                    }
+                    // if(asset_type && ['VuProjectAsset' ].includes(asset_type) ) {
+                    //     if (mod.symbols.parse_binary_json) {
+                    //         const p = thiz.args6.readPointer()
+                    //         const len = p.readU32()
+                    //         new NativeFunction(
+                    //             mod.symbols.parse_binary_json, 
+                    //             'void', ['pointer', 'int'])(
+                    //                 p.add(4),
+                    //                 len
+                    //             );
+                    //     }
+                    // }
                 }
             }
         },
