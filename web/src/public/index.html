@@ -6,12 +6,29 @@
     <title>Home Page</title>
 </head>
 <body>
-    <h1>Welcome to Home Page</h1>
+    <h1>Welcome to Riptide GP Page</h1>
     <nav>
-        <a href="/">Home!!!</a>
         <a href="/about.html">About</a>
     </nav>
-    <div id="content"></div>
+
+    <!-- content -->
+    <h2>Log</h2>
+    <button id="clear">Clear</button>
+    <table>
+        <thead>
+            <tr>
+                <th>Asset Type</th>
+                <th>Asset Name</th>
+                <th>Asset Lang</th>
+                <th>Type</th>
+                <th>CRC</th>
+                <th>Size</th>
+            </tr>
+        </thead>
+        <tbody id="log"></tbody>    
+    </table>
+
+
     <script src="/scripts/index.js"></script>
 </body>
 </html> 

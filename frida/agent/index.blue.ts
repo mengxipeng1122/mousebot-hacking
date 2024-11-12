@@ -59,13 +59,37 @@ const hook_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
                 enterFun(args, tstr, thiz) {
                 },
                 leaveFun(args, tstr, thiz) {
-                    const type_type = thiz.args1.readUtf8String();
-                    const type_name = parse_std_string(mod, thiz.args2)
-                    const type_lang = parse_std_string(mod, thiz.args3)
+                    const asset_type = thiz.args1.readUtf8String();
+                    const asset_name = parse_std_string(mod, thiz.args2)
+                    const asset_lang = parse_std_string(mod, thiz.args3)
                     const type = thiz.args4.readU32()
                     const crc = thiz.args5.readU32()
                     const arr = parse_vu_array_unsigned_char(mod, thiz.args6)
-                    console.log(tstr, `${type_type}/${type_name} ${type_lang} type: ${type}, crc: ${crc} ${arr?.byteLength}`)
+                    console.log(tstr, `${asset_type}/${asset_name} ${asset_lang} type: ${type}, crc: ${crc} ${arr?.byteLength}`)
+                    send({
+                        type:'asset_read',
+                        data: {
+                            asset_type,
+                            asset_name,
+                            asset_lang,
+                            type,
+                            crc:ptr(crc),
+                            size:arr?.byteLength,
+                        }
+                    });
+
+                    if(asset_type && ['VuProjectAsset' ].includes(asset_type) ) {
+                        if (mod.symbols.parse_binary_json) {
+                            const p = thiz.args6.readPointer()
+                            const len = p.readU32()
+                            new NativeFunction(
+                                mod.symbols.parse_binary_json, 
+                                'void', ['pointer', 'int'])(
+                                    p.add(4),
+                                    len
+                                );
+                        }
+                    }
                 }
             }
         },
