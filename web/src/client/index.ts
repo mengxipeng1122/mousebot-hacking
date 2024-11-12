@@ -45,18 +45,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             // add a button to show the asset 
-            const show = document.createElement('button');
-            show.textContent = 'Show';
-            show.addEventListener('click', () => {
-                if (['VuProjectAsset', 
-                    ].includes(asset_type)) {
+            if (['VuProjectAsset', 
+                ].includes(asset_type)) {
+                const show = document.createElement('button');
+                show.textContent = 'Show';
+                show.addEventListener('click', () => {
                     console.log('Showing asset:', data);
-                }
-                else {
-                    alert(`Cannot show asset ${asset_type}`);
-                }
-            });
-            row.appendChild(show);
+                    const url = `/api/asset_json?assetType=${asset_type}&assetName=${asset_name}&assetLang=${asset_lang}`;
+                    fetch(url)
+                        .then(response => response.json())
+                        .then(json => {
+                            // add code to show the json string after the row
+                            const json_str = JSON.stringify(json, null, 2);
+                            alert(json_str); // Popup a dialog to show the JSON
+                        });
+                });
+                row.appendChild(show);
+            }
         }
 
         // clear button

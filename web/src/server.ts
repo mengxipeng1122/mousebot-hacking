@@ -103,6 +103,31 @@ async function connect_frida() {
         }
       });
 
+      // Add API endpoint for getting assets
+      app.get('/api/asset_json', async (req, res) => {
+          try {
+            const { assetType, assetName, assetLang } = req.query;
+            
+            if (!assetType || !assetName) {
+                return res.status(400).json({ error: 'Missing required parameters' });
+            }
+
+            const json = await script.exports.get_asset_json(assetType, assetName, assetLang);
+
+            if (!json) {
+                return res.status(404).json({ error: `Asset not found for ${assetType}, ${assetName}, ${assetLang}` });
+            }
+
+            // Send binary data as response
+            res.set('Content-Type', 'application/json');
+            res.send(json);
+
+        } catch (error) {
+            console.error('Error in /api/asset:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
     const ret = await script.exports.init();
     console.log('init:', ret);
 

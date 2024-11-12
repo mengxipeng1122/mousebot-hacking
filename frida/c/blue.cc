@@ -182,3 +182,92 @@ int get_asset_binary(
     }
     return 0;
 }
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_json(
+    const char* asset_type, 
+    const char* assert_name, 
+    const char* asset_lang,
+    void (*cb)(const char*)
+    ) {
+    std::string type_name(asset_type);
+    std::string file_name(assert_name);
+    std::string lang(asset_lang);
+
+    VuAssetFactory* vuAssetFactory = VuAssetFactory::mpInterface;
+    if(vuAssetFactory == NULL) {
+        LOG_INFOS("vuAssetFactory is nullptr");
+        return -1;
+    }
+
+    VuAssetFactoryImpl* impl = (VuAssetFactoryImpl*)vuAssetFactory;
+
+    std::string name = impl->getAssetDBName(0);
+    LOG_INFOS("name: %s", name.c_str());
+    VuAssetDB& db = impl->getAssetDB(name);
+    LOG_INFOS("db: %p", &db);
+
+    VuArray<unsigned char> arr;
+    arr.data = NULL;
+    arr.size = 0;
+    arr.capacity = 0;
+    unsigned int hash;
+    unsigned int type;
+    bool read_binary_ok = db.mPackFileReader.read(
+        type_name.c_str(), 
+        file_name,
+        lang,
+        hash, type, arr);
+    if (!read_binary_ok) {
+        LOG_INFOS("read failed: %s, %s", type_name.c_str(), file_name.c_str());
+        return -1;
+    }
+    LOG_INFOS("data: %p %zu bytes", arr.data, arr.size);
+
+    _frida_hexdump(arr.data, 0x20);
+
+    // read json binary size 
+    size_t json_binary_size = *(size_t*)&arr.data[0];
+    if(json_binary_size > arr.size || json_binary_size == 0){
+        LOG_INFOS("json_binary_size is invalid: %zu", json_binary_size);
+        if(arr.data != NULL) {
+            free(arr.data);
+            arr.data = NULL;
+        }
+        return -1;
+    }
+
+    if(memcmp(&arr.data[4], "VUJB", 4) != 0){
+        LOG_INFOS("json_binary is not valid");
+        if(arr.data != NULL) {
+            free(arr.data);
+            arr.data = NULL;
+        }
+        return -2;
+    }
+
+    const unsigned char* json_binary = &arr.data[4];
+    LOG_INFOS("json_binary: %p %zu bytes", json_binary, json_binary_size);
+
+    VuJsonBinaryReader reader;
+    VuJsonContainer container;
+    bool read_json_ok = reader.loadFromMemory(container, json_binary, json_binary_size);
+    if(!read_json_ok){
+        LOG_INFOS("read json failed");
+        if(arr.data != NULL) {
+            free(arr.data);
+            arr.data = NULL;
+        }
+        return -3;
+    }
+
+    std::string str;
+    VuJsonWriter writer;
+    writer.saveToString(container, str);
+    cb(str.c_str());
+    if(arr.data != NULL) {
+        free(arr.data);
+        arr.data = NULL;
+    }
+    return 0;
+}

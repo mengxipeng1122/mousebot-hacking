@@ -1,10 +1,12 @@
 import "ts-frida"
 import {mod as libblueinfo} from './modinfos/libblue.js'
+import { get } from "node:http"
 
 const soname = "libBlue.so"
 
 declare global {
     function get_asset_binary(asset_type: string, asset_name: string, asset_lang: string) : ArrayBuffer | null;
+    function get_asset_json(asset_type: string, asset_name: string, asset_lang: string) : string | null;
 }
 
 type HOOK_TYPE = {
@@ -66,6 +68,23 @@ const load_patchlib = ()=>{
             return bs;
         };
 
+    const get_asset_json = (asset_type: string, asset_name: string, asset_lang: string) : string | null => {
+        let json: string | null = null;
+
+        const cb = new NativeCallback((p:NativePointer) => {
+            json = p.readUtf8String()
+        }, 'void', ['pointer'])
+
+        new NativeFunction(mod.symbols.get_asset_json, 
+            'int', 
+            ['pointer', 'pointer', 'pointer', 'pointer'])(
+                Memory.allocUtf8String(asset_type), 
+                Memory.allocUtf8String(asset_name), 
+                Memory.allocUtf8String(asset_lang), 
+                cb)
+        return json;
+    }
+
     rpc.exports = {
         // Add two numbers and return result
         init: function(a, b) {
@@ -75,12 +94,16 @@ const load_patchlib = ()=>{
 
         get_asset_binary,
 
+        get_asset_json,
+
     }
 
+    global.get_asset_binary = get_asset_binary
+    global.get_asset_json = get_asset_json
 
-    // 
-    //const ret = rpc.exports.get_asset_binary('VuTextureAsset', 'UI/MenuIcon_Pause_Resume', '')
-    //console.log(`ret: ${ret}`)
+    // get_asset_json('VuProjectAsset', 'Screens/DemoBackground', '')
+
+
     return mod
 }
 
