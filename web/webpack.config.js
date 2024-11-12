@@ -29,6 +29,7 @@ const clientConfig = {
   entry: {
     index: './src/client/index.ts',
     about: './src/client/about.ts',
+    show_texture: './src/client/show_texture.ts',
   },
   module: {
     rules: [

@@ -57,20 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (['VuTextureAsset'].includes(asset_type)) {
-                const url = `/api/asset_texture?assetType=${asset_type}&assetName=${asset_name}&assetLang=${asset_lang}`;
-                const show = document.createElement('button');
-                show.textContent = 'Show';
-                show.addEventListener('click', () => {
-                    fetch(url)
-                        .then(response => response.json())
-                        .then(res => {
-                            console.log(JSON.stringify(res));
-                            //const img = document.createElement('img');
-                            //img.src = URL.createObjectURL(new Blob([arrayBuffer]));
-                            //document.body.appendChild(img);
-                        });
-                });
-                row.appendChild(show);
+                const url = `/show_texture.html?assetType=${asset_type}&assetName=${asset_name}&assetLang=${asset_lang}`;
+                const link = document.createElement('a');
+                link.href = url;
+                link.textContent = 'Show';
+                row.appendChild(link);
             }
         }
 

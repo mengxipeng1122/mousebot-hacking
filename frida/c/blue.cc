@@ -272,7 +272,7 @@ int get_asset_json(
 }
 
 
-void _get_asset_texture_cb(unsigned char* pData, int size, void* user_data) {
+void _get_asset_texture_info_cb(unsigned char* pData, int size, void* user_data) {
     LOG_INFOS("data: %p %zu bytes", pData, size);
 
     VuBinaryDataReader reader;
@@ -283,7 +283,8 @@ void _get_asset_texture_cb(unsigned char* pData, int size, void* user_data) {
     VuOglesTexture* texture = VuTexture::loadFromMemory(reader);
     _frida_hexdump((void*)texture, sizeof(VuOglesTexture));
 
-    void (*cb)(unsigned char* pData, int size, int level, int width, int height, int pitch, int gl_format) = (void (*)(unsigned char* pData, int size, int level, int width, int height, int pitch, int gl_format))user_data;
+    void (*cb)(int size, int level, int width, int height, int pitch, int gl_format) 
+        = (void (*)(int size, int level, int width, int height, int pitch, int gl_format))user_data;
     VuTextureData& data = texture->mTextureData;
     LOG_INFOS("Total level: %d", data.mTotalLevel);
     for(int i=0; i<data.mTotalLevel; i++){
@@ -291,18 +292,62 @@ void _get_asset_texture_cb(unsigned char* pData, int size, void* user_data) {
         unsigned int height = data.getLevelHeight(i);
         unsigned int pitch = data.getLevelPitch(i);
         size_t size = data.getLevelSize(i);
-        unsigned char* p = data.getLevelData(i);
-        LOG_INFOS("level %d: %p %d %d %d %zu", i, p, width, height, pitch, size);
-        cb(p, size, i, width, height, pitch, texture->mGlFormat);
+        LOG_INFOS("level %d: %zu %d %d %d %zu", i, width, height, pitch, size);
+        cb(size, i, width, height, pitch, texture->mGlFormat);
     }
 }
 
 extern "C" __attribute__((visibility("default")))
-int get_asset_texture(
+int get_asset_texture_info(
     const char* asset_type, 
     const char* assert_name, 
     const char* asset_lang,
-    void (*cb)(unsigned char* pData, int size, int level, int width, int height, int pitch, int gl_format)
+    void (*cb)(int size, int level, int width, int height, int pitch, int gl_format)
     ) {
-    return find_asset(asset_type, assert_name, asset_lang, _get_asset_texture_cb, (void*)cb);
+    return find_asset(asset_type, assert_name, asset_lang, _get_asset_texture_info_cb, (void*)cb);
+}
+
+struct _get_asset_texture_binary_cb_data {
+    int level;
+    void (*cb)(unsigned char* pData, int size);
+};
+
+void _get_asset_texture_binary_cb(unsigned char* pData, int size, void* user_data) {
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+    _get_asset_texture_binary_cb_data* cb_data = (_get_asset_texture_binary_cb_data*)user_data;
+    int level = cb_data->level;
+    void (*cb)(unsigned char* pData, int size) = cb_data->cb;
+
+    VuBinaryDataReader reader;
+    reader.data = pData;
+    reader.size = size;
+    reader.offset = 0;
+
+    VuOglesTexture* texture = VuTexture::loadFromMemory(reader);
+    _frida_hexdump((void*)texture, sizeof(VuOglesTexture));
+
+    VuTextureData& data = texture->mTextureData;
+    LOG_INFOS("Total level: %d", data.mTotalLevel);
+    if(level >= data.mTotalLevel){
+        LOG_INFOS("level is out of range: %d", level);
+        return;
+    }
+    size_t texture_size = data.getLevelSize(level);
+    unsigned char* pTextureData = data.getLevelData(level);
+    LOG_INFOS("level %d:  %zu", level,  texture_size);
+    cb(pTextureData, texture_size);
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_texture_binary(
+    const char* asset_type, 
+    const char* assert_name, 
+    const char* asset_lang,
+    int level,
+    void (*cb)(unsigned char* pData, int size)
+    ) {
+    _get_asset_texture_binary_cb_data data;
+    data.level = level;
+    data.cb = cb;
+    return find_asset(asset_type, assert_name, asset_lang, _get_asset_texture_binary_cb, (void*)&data);
 }

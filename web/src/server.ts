@@ -129,18 +129,33 @@ async function connect_frida() {
       });
 
       // Add API endpoint for getting assets
-      app.get('/api/asset_texture', async (req, res) => {
+      app.get('/api/asset_texture_info', async (req, res) => {
           try {
             const { assetType, assetName, assetLang } = req.query;
 
-            const textures = await script.exports.get_asset_texture(assetType, assetName, assetLang);    
+            const textures_info = await script.exports.get_asset_texture_info(assetType, assetName, assetLang);    
 
             res.set('Content-Type', 'application/json');
-            res.send(JSON.stringify(textures));
+            res.send(JSON.stringify(textures_info));
 
         } catch (error) {
             console.error('Error in /api/asset_texture:', error);
             res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
+      app.get('/api/asset_texture_binary', async (req, res) => {
+        try {
+          const { assetType, assetName, assetLang, level } = req.query;
+          const level_num = parseInt(level as string);
+          const binary = await script.exports.get_asset_texture_binary(assetType, assetName, assetLang, level_num);
+
+          res.set('Content-Type', 'application/octet-stream');
+          res.send(binary);
+
+        } catch (error) {
+            console.error(`Error in /api/asset_texture_binary: `, error);
+            res.status(500).json({ error: 'Internal server error' });   
         }
       });
 
