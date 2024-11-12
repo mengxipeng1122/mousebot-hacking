@@ -1,8 +1,11 @@
-
 import "ts-frida"
 import {mod as libblueinfo} from './modinfos/libblue.js'
 
 const soname = "libBlue.so"
+
+declare global {
+    function get_asset_binary(asset_type: string, asset_name: string, asset_lang: string) : ArrayBuffer | null;
+}
 
 type HOOK_TYPE = {
     p: NativePointer,
@@ -41,6 +44,42 @@ const load_patchlib = ()=>{
     if(mod.symbols.init) {
         new NativeFunction(mod.symbols.init, 'int', [])()
     }
+
+    const get_asset_binary = (asset_type: string, asset_name: string, asset_lang: string) => {
+            let bs: ArrayBuffer | null = null;
+
+            const cb = new NativeCallback((p:NativePointer, size:number) => {
+                bs = p.readByteArray(size)
+                console.log(`get_asset_binary: ${bs?.byteLength}`)
+            }, 'void', ['pointer', 'int'])
+
+
+            if (mod.symbols.get_asset_binary) {
+                new NativeFunction(mod.symbols.get_asset_binary, 
+                    'int', 
+                    ['pointer', 'pointer', 'pointer', 'pointer'])(
+                        Memory.allocUtf8String(asset_type), 
+                        Memory.allocUtf8String(asset_name), 
+                        Memory.allocUtf8String(asset_lang), 
+                        cb)
+            }
+            return bs;
+        };
+
+    rpc.exports = {
+        // Add two numbers and return result
+        add: function(a, b) {
+            return a + b;
+        },
+
+        get_asset_binary,
+
+    }
+
+
+    // 
+    //const ret = rpc.exports.get_asset_binary('VuTextureAsset', 'UI/MenuIcon_Pause_Resume', '')
+    //console.log(`ret: ${ret}`)
     return mod
 }
 

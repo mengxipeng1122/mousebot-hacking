@@ -66,11 +66,70 @@ async function connect_frida() {
 
       // Load script
       await script.load();
-      console.log('Script loaded successfully');
+      console.log('Frida Script loaded successfully');
 
       // Now you can call these functions from TypeScript like:
+      // Add API to get asset binary
+      const handleAssetDownload = async (assetType: string, assetName: string, assetLang: string) => {
+          try {
+            console.log(`get_asset_binary: ${assetType}, ${assetName}, ${assetLang}`);
+            const binary = await script.exports.get_asset_binary(assetType, assetName, assetLang);
+            return binary;
+          } catch (error) {
+              console.error('Error getting asset binary:', error);
+              return null;
+          }
+      }
+
+// Add API endpoint for getting assets
+app.get('/api/asset', async (req, res) => {
+    try {
+        const { assetType, assetName, assetLang } = req.query;
+        
+        if (!assetType || !assetName) {
+            return res.status(400).json({ error: 'Missing required parameters' });
+        }
+
+        const binary = await handleAssetDownload(
+            assetType as string, 
+            assetName as string, 
+            (assetLang as string) || ''
+        );
+
+        if (!binary) {
+            return res.status(404).json({ error: 'Asset not found' });
+        }
+
+        // Send binary data as response
+        res.set('Content-Type', 'application/octet-stream');
+        res.send(Buffer.from(binary));
+
+    } catch (error) {
+        console.error('Error in /api/asset:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+      // Add socket handler for asset downloads
+      // io.on('connection', (socket) => {
+      //     socket.on('download_asset', async (data) => {
+      //       const assetType = data.asset_type;
+      //       const assetName = data.asset_name;
+      //       const assetLang = data.asset_lang;
+      //       const binary = await handleAssetDownload(assetType, assetName, assetLang);
+      //       if (binary) {
+      //           socket.emit('asset_binary', {
+      //               assetType,
+      //               assetName,
+      //               assetLang,
+      //               binary: binary
+      //           });
+      //       }
+      //     });
+      // });
       // const version = await script.exports.getversion();
-      // console.log('App version:', version);
+      const sum = await script.exports.add(5 as any, 3 as any);
+      console.log('5 + 3 =', sum);
       // const isRooted = await script.exports.checkroot();
 
   } catch (error) {
@@ -82,10 +141,12 @@ async function connect_frida() {
 // Serve static files from the dist/public directory instead of src/public
 app.use(express.static(path.join(__dirname, '..', 'dist', 'public')));
 
+
 connect_frida();
 
 // Set up Socket.IO
 const httpServer = createServer(app);
+
 const io = new Server(httpServer, {
   cors: {
     origin: "*",

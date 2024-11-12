@@ -49,6 +49,12 @@ struct VuAssetPackFileReader {
     unsigned char _x00[0x20];
     std::map<std::string, VuAssetFileInfo> mFileMap;
     unsigned char _x28[0x50];
+    bool read(char const*, 
+        std::string const&, 
+        std::string const&, 
+        unsigned int&, 
+        unsigned int&, 
+        VuArray<unsigned char>&);
 };
 
 struct VuAssetDB {
@@ -127,4 +133,52 @@ extern "C" __attribute__((visibility("default"))) void parse_binary_json(
         writer.saveToString(container, str);
         LOG_INFOS("str: %s", str.c_str());
     }
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_binary(
+    const char* asset_type, 
+    const char* assert_name, 
+    const char* asset_lang,
+    void (*cb)(unsigned char* pData, int size)
+    ) {
+    std::string type_name(asset_type);
+    std::string file_name(assert_name);
+    std::string lang(asset_lang);
+
+    VuAssetFactory* vuAssetFactory = VuAssetFactory::mpInterface;
+    if(vuAssetFactory == NULL) {
+        LOG_INFOS("vuAssetFactory is nullptr");
+        return -1;
+    }
+
+    VuAssetFactoryImpl* impl = (VuAssetFactoryImpl*)vuAssetFactory;
+
+    std::string name = impl->getAssetDBName(0);
+    LOG_INFOS("name: %s", name.c_str());
+    VuAssetDB& db = impl->getAssetDB(name);
+    LOG_INFOS("db: %p", &db);
+
+    VuArray<unsigned char> arr;
+    arr.data = NULL;
+    arr.size = 0;
+    arr.capacity = 0;
+    unsigned int hash;
+    unsigned int type;
+    bool success = db.mPackFileReader.read(
+        type_name.c_str(), 
+        file_name,
+        lang,
+        hash, type, arr);
+    if (!success) {
+        LOG_INFOS("read failed: %s, %s", type_name.c_str(), file_name.c_str());
+        return -1;
+    }
+    LOG_INFOS("data: %p %zu bytes", arr.data, arr.size);
+    cb(arr.data, arr.size);
+    if(arr.data != NULL) {
+        free(arr.data);
+        arr.data = NULL;
+    }
+    return 0;
 }
