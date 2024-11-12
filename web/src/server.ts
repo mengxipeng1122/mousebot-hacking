@@ -128,7 +128,23 @@ async function connect_frida() {
         }
       });
 
-    const ret = await script.exports.init();
+      // Add API endpoint for getting assets
+      app.get('/api/asset_texture', async (req, res) => {
+          try {
+            const { assetType, assetName, assetLang } = req.query;
+
+            const textures = await script.exports.get_asset_texture(assetType, assetName, assetLang);    
+
+            res.set('Content-Type', 'application/json');
+            res.send(JSON.stringify(textures));
+
+        } catch (error) {
+            console.error('Error in /api/asset_texture:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
+    const ret = await script.exports.invoke_init();
     console.log('init:', ret);
 
   } catch (error) {

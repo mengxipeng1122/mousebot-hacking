@@ -7,6 +7,13 @@ const soname = "libBlue.so"
 declare global {
     function get_asset_binary(asset_type: string, asset_name: string, asset_lang: string) : ArrayBuffer | null;
     function get_asset_json(asset_type: string, asset_name: string, asset_lang: string) : string | null;
+    function get_asset_texture(asset_type: string, asset_name: string, asset_lang: string) : {
+        data: number[],
+        width: number,
+        height: number,
+        pitch: number,
+        gl_format: number,
+    }[];
 }
 
 type HOOK_TYPE = {
@@ -85,9 +92,44 @@ const load_patchlib = ()=>{
         return json;
     }
 
+    const get_asset_texture = (asset_type: string, asset_name: string, asset_lang: string) => {
+        let images: {
+            data: number[],
+            width: number,
+            height: number,
+            pitch: number,
+            gl_format: number,
+        }[] = [];
+
+        const cb = new NativeCallback((p:NativePointer, size:number, level:number, width:number, height:number, pitch:number, gl_format:number) => {
+            console.log(`get_asset_texture: ${level} `);
+            const bs = p.readByteArray(size)
+            console.log(`get_asset_texture: ${level} ${width} ${height} ${pitch} ${gl_format} ${bs?.byteLength}`)
+            if(bs) {
+                images.push({
+                    data:  Array.from(new Uint8Array(bs)),
+                    width,
+                    height,
+                    pitch,
+                    gl_format,
+                })
+            }
+        }, 'void', ['pointer', 'int', 'int', 'int', 'int', 'int', 'int'])
+
+        new NativeFunction(mod.symbols.get_asset_texture, 
+            'int', 
+            ['pointer', 'pointer', 'pointer', 'pointer'])(
+                Memory.allocUtf8String(asset_type), 
+                Memory.allocUtf8String(asset_name), 
+                Memory.allocUtf8String(asset_lang), 
+                cb)
+        console.log(`get_asset_texture: ${images.length} ${JSON.stringify(images)}`)
+        return images;
+    }
+
     rpc.exports = {
         // Add two numbers and return result
-        init: function(a, b) {
+        invoke_init: function(a, b) {
             console.log(`init: ${a} ${b}`)
             return  "Hello from frida ts"
         },
@@ -96,11 +138,13 @@ const load_patchlib = ()=>{
 
         get_asset_json,
 
+        get_asset_texture,
+
     }
 
     global.get_asset_binary = get_asset_binary
     global.get_asset_json = get_asset_json
-
+    global.get_asset_texture = get_asset_texture
     // get_asset_json('VuProjectAsset', 'Screens/DemoBackground', '')
 
 

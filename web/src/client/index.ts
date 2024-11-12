@@ -45,19 +45,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             // add a button to show the asset 
-            if (['VuProjectAsset', 
+            if ([
+                    'VuProjectAsset', 
+                    'VuTemplateAsset',
                 ].includes(asset_type)) {
+                const url = `/api/asset_json?assetType=${asset_type}&assetName=${asset_name}&assetLang=${asset_lang}`;
+                const link = document.createElement('a');
+                link.href = url;
+                link.textContent = 'Show';
+                row.appendChild(link);
+            }
+
+            if (['VuTextureAsset'].includes(asset_type)) {
+                const url = `/api/asset_texture?assetType=${asset_type}&assetName=${asset_name}&assetLang=${asset_lang}`;
                 const show = document.createElement('button');
                 show.textContent = 'Show';
                 show.addEventListener('click', () => {
-                    console.log('Showing asset:', data);
-                    const url = `/api/asset_json?assetType=${asset_type}&assetName=${asset_name}&assetLang=${asset_lang}`;
                     fetch(url)
                         .then(response => response.json())
-                        .then(json => {
-                            // add code to show the json string after the row
-                            const json_str = JSON.stringify(json, null, 2);
-                            alert(json_str); // Popup a dialog to show the JSON
+                        .then(res => {
+                            console.log(JSON.stringify(res));
+                            //const img = document.createElement('img');
+                            //img.src = URL.createObjectURL(new Blob([arrayBuffer]));
+                            //document.body.appendChild(img);
                         });
                 });
                 row.appendChild(show);

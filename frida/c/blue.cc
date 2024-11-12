@@ -68,6 +68,36 @@ struct VuAssetFactoryImpl : public VuAssetFactory {
     VuAssetDB& getAssetDB(std::string const&);
 };
 
+struct VuTextureData {
+    unsigned char _x00[0xc];
+    unsigned int mTotalLevel;
+    VuArray<unsigned char> mData;
+    unsigned char* getLevelData(int);
+    unsigned int getLevelHeight(int);
+    unsigned int getLevelWidth(int);
+    unsigned int getLevelPitch(int);
+    size_t getLevelSize(int);
+};
+
+struct VuOglesTexture {
+    unsigned char _x00[0x1c];
+    unsigned int mGlFormat;
+    unsigned char _x20[0x20];
+    VuTextureData mTextureData;
+    ~VuOglesTexture();
+};
+
+struct VuBinaryDataReader {
+    unsigned char* data;
+    size_t size;
+    size_t offset;
+    VuBinaryDataReader() : data(NULL), size(0), offset(0) {}
+};
+
+struct VuTexture {
+   static VuOglesTexture* loadFromMemory(VuBinaryDataReader&);
+};
+
 
 int listAllAssets()
 {
@@ -135,13 +165,13 @@ extern "C" __attribute__((visibility("default"))) void parse_binary_json(
     }
 }
 
-extern "C" __attribute__((visibility("default")))
-int get_asset_binary(
+int find_asset(
     const char* asset_type, 
     const char* assert_name, 
     const char* asset_lang,
-    void (*cb)(unsigned char* pData, int size)
-    ) {
+    void (*cb)(unsigned char* pData, int size, void* user_data),
+    void* user_data
+) {
     std::string type_name(asset_type);
     std::string file_name(assert_name);
     std::string lang(asset_lang);
@@ -175,12 +205,60 @@ int get_asset_binary(
         return -1;
     }
     LOG_INFOS("data: %p %zu bytes", arr.data, arr.size);
-    cb(arr.data, arr.size);
+    cb(arr.data, arr.size, user_data);
     if(arr.data != NULL) {
         free(arr.data);
         arr.data = NULL;
     }
     return 0;
+}
+
+void _get_asset_binary_cb(unsigned char* pData, int size, void* user_data) {
+    void (*cb)(unsigned char* pData, int size) = (void (*)(unsigned char* pData, int size))user_data;
+    cb(pData, size);
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_binary(
+    const char* asset_type, 
+    const char* assert_name, 
+    const char* asset_lang,
+    void (*cb)(unsigned char* pData, int size)
+    ) {
+    return find_asset(asset_type, assert_name, asset_lang, _get_asset_binary_cb, (void*)cb);
+}
+
+void _get_asset_json_cb(unsigned char* pData, int size, void* user_data) {
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+
+    // read json binary size 
+    size_t json_binary_size = *(size_t*)&pData[0];
+    if(json_binary_size > size || json_binary_size == 0){
+        LOG_INFOS("json_binary_size is invalid: %zu", json_binary_size);
+        return;
+    }
+
+    if(memcmp(&pData[4], "VUJB", 4) != 0){
+        LOG_INFOS("json_binary is not valid");
+        return; 
+    }
+
+    const unsigned char* json_binary = &pData[4];
+    LOG_INFOS("json_binary: %p %zu bytes", json_binary, json_binary_size);
+
+    VuJsonBinaryReader reader;
+    VuJsonContainer container;
+    bool read_json_ok = reader.loadFromMemory(container, json_binary, json_binary_size);
+    if(!read_json_ok){
+        LOG_INFOS("read json failed");
+        return ;
+    }
+
+    std::string str;
+    VuJsonWriter writer;
+    writer.saveToString(container, str);
+    void (*cb)(const char*) = (void (*)(const char*))user_data;
+    cb(str.c_str());
 }
 
 extern "C" __attribute__((visibility("default")))
@@ -190,84 +268,41 @@ int get_asset_json(
     const char* asset_lang,
     void (*cb)(const char*)
     ) {
-    std::string type_name(asset_type);
-    std::string file_name(assert_name);
-    std::string lang(asset_lang);
+    return find_asset(asset_type, assert_name, asset_lang, _get_asset_json_cb, (void*)cb);
+}
 
-    VuAssetFactory* vuAssetFactory = VuAssetFactory::mpInterface;
-    if(vuAssetFactory == NULL) {
-        LOG_INFOS("vuAssetFactory is nullptr");
-        return -1;
+
+void _get_asset_texture_cb(unsigned char* pData, int size, void* user_data) {
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+
+    VuBinaryDataReader reader;
+    reader.data = pData;
+    reader.size = size;
+    reader.offset = 0;
+
+    VuOglesTexture* texture = VuTexture::loadFromMemory(reader);
+    _frida_hexdump((void*)texture, sizeof(VuOglesTexture));
+
+    void (*cb)(unsigned char* pData, int size, int level, int width, int height, int pitch, int gl_format) = (void (*)(unsigned char* pData, int size, int level, int width, int height, int pitch, int gl_format))user_data;
+    VuTextureData& data = texture->mTextureData;
+    LOG_INFOS("Total level: %d", data.mTotalLevel);
+    for(int i=0; i<data.mTotalLevel; i++){
+        unsigned int width = data.getLevelWidth(i);
+        unsigned int height = data.getLevelHeight(i);
+        unsigned int pitch = data.getLevelPitch(i);
+        size_t size = data.getLevelSize(i);
+        unsigned char* p = data.getLevelData(i);
+        LOG_INFOS("level %d: %p %d %d %d %zu", i, p, width, height, pitch, size);
+        cb(p, size, i, width, height, pitch, texture->mGlFormat);
     }
+}
 
-    VuAssetFactoryImpl* impl = (VuAssetFactoryImpl*)vuAssetFactory;
-
-    std::string name = impl->getAssetDBName(0);
-    LOG_INFOS("name: %s", name.c_str());
-    VuAssetDB& db = impl->getAssetDB(name);
-    LOG_INFOS("db: %p", &db);
-
-    VuArray<unsigned char> arr;
-    arr.data = NULL;
-    arr.size = 0;
-    arr.capacity = 0;
-    unsigned int hash;
-    unsigned int type;
-    bool read_binary_ok = db.mPackFileReader.read(
-        type_name.c_str(), 
-        file_name,
-        lang,
-        hash, type, arr);
-    if (!read_binary_ok) {
-        LOG_INFOS("read failed: %s, %s", type_name.c_str(), file_name.c_str());
-        return -1;
-    }
-    LOG_INFOS("data: %p %zu bytes", arr.data, arr.size);
-
-    _frida_hexdump(arr.data, 0x20);
-
-    // read json binary size 
-    size_t json_binary_size = *(size_t*)&arr.data[0];
-    if(json_binary_size > arr.size || json_binary_size == 0){
-        LOG_INFOS("json_binary_size is invalid: %zu", json_binary_size);
-        if(arr.data != NULL) {
-            free(arr.data);
-            arr.data = NULL;
-        }
-        return -1;
-    }
-
-    if(memcmp(&arr.data[4], "VUJB", 4) != 0){
-        LOG_INFOS("json_binary is not valid");
-        if(arr.data != NULL) {
-            free(arr.data);
-            arr.data = NULL;
-        }
-        return -2;
-    }
-
-    const unsigned char* json_binary = &arr.data[4];
-    LOG_INFOS("json_binary: %p %zu bytes", json_binary, json_binary_size);
-
-    VuJsonBinaryReader reader;
-    VuJsonContainer container;
-    bool read_json_ok = reader.loadFromMemory(container, json_binary, json_binary_size);
-    if(!read_json_ok){
-        LOG_INFOS("read json failed");
-        if(arr.data != NULL) {
-            free(arr.data);
-            arr.data = NULL;
-        }
-        return -3;
-    }
-
-    std::string str;
-    VuJsonWriter writer;
-    writer.saveToString(container, str);
-    cb(str.c_str());
-    if(arr.data != NULL) {
-        free(arr.data);
-        arr.data = NULL;
-    }
-    return 0;
+extern "C" __attribute__((visibility("default")))
+int get_asset_texture(
+    const char* asset_type, 
+    const char* assert_name, 
+    const char* asset_lang,
+    void (*cb)(unsigned char* pData, int size, int level, int width, int height, int pitch, int gl_format)
+    ) {
+    return find_asset(asset_type, assert_name, asset_lang, _get_asset_texture_cb, (void*)cb);
 }
