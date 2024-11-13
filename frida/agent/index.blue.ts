@@ -2,20 +2,17 @@ import "ts-frida"
 import {mod as libblueinfo} from './modinfos/libblue.js'
 import { get } from "node:http"
 
-import { LogEntry } from './common.js';
+import { 
+    LogEntry, 
+    TextureInfo,
+} from './common.js';
 
 const soname = "libBlue.so"
 
 declare global {
     function get_asset_binary(asset_type: string, asset_name: string, asset_lang: string) : ArrayBuffer | null;
     function get_asset_json(asset_type: string, asset_name: string, asset_lang: string) : string | null;
-    function get_asset_texture_info(asset_type: string, asset_name: string, asset_lang: string) : {
-        level: number,
-        width: number,
-        height: number,
-        pitch: number,
-        gl_format: number,
-    }[];
+    function get_asset_texture_info(asset_type: string, asset_name: string, asset_lang: string) : TextureInfo[];
     function get_asset_texture_binary(asset_type: string, asset_name: string, asset_lang: string, level: number) : ArrayBuffer | null;
 }
 
@@ -96,22 +93,16 @@ const load_patchlib = ()=>{
     }
 
     const get_asset_texture_info = (asset_type: string, asset_name: string, asset_lang: string) => {
-        let images: {
-            level: number,
-            width: number,
-            height: number,
-            pitch: number,
-            gl_format: number,
-        }[] = [];
+        let images: TextureInfo[] = [];
 
-        const cb = new NativeCallback((size:number, level:number, width:number, height:number, pitch:number, gl_format:number) => {
-            console.log(`get_asset_texture_info: ${level} ${width} ${height} ${pitch} ${gl_format}`)
+        const cb = new NativeCallback((size:number, level:number, width:number, height:number, pitch:number, glFormat:number) => {
+            console.log(`get_asset_texture_info: ${level} ${width} ${height} ${pitch} ${glFormat}`)
             images.push({
                 level,
                 width,
                 height,
                 pitch,
-                gl_format,
+                glFormat,
             })
         }, 'void', ['int', 'int', 'int', 'int', 'int', 'int'])
 
@@ -203,18 +194,6 @@ const hook_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
                         data,
                     });
 
-                    // if(asset_type && ['VuProjectAsset' ].includes(asset_type) ) {
-                    //     if (mod.symbols.parse_binary_json) {
-                    //         const p = thiz.args6.readPointer()
-                    //         const len = p.readU32()
-                    //         new NativeFunction(
-                    //             mod.symbols.parse_binary_json, 
-                    //             'void', ['pointer', 'int'])(
-                    //                 p.add(4),
-                    //                 len
-                    //             );
-                    //     }
-                    // }
                 }
             }
         },

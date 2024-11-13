@@ -1,7 +1,10 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { LogEntry } from './common';
+import { 
+  LogEntry,
+  TextureInfo,
+} from './common';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
 
@@ -134,7 +137,7 @@ async function connect_frida() {
           try {
             const { assetType, assetName, assetLang } = req.query;
 
-            const textures_info = await script.exports.get_asset_texture_info(assetType, assetName, assetLang);    
+            const textures_info = await script.exports.get_asset_texture_info(assetType, assetName, assetLang) as TextureInfo[];    
 
             res.set('Content-Type', 'application/json');
             res.send(JSON.stringify(textures_info));
