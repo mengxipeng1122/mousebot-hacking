@@ -194,6 +194,18 @@ async function connect_frida() {
         }
       });
 
+      app.get('/api/get_asset_static_model', async (req, res) => {
+        try {
+          const { name } = req.query;
+          const model = await script.exports.get_asset_static_model(name as string);
+          res.set('Content-Type', 'application/octet-stream');
+          res.send(model);
+        } catch (error) {
+            console.error('Error in /api/get_asset_static_model:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
     const ret = await script.exports.invoke_init();
     console.log('init:', ret);
 

@@ -334,6 +334,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         `;
                     });
+            } else if ([
+                'VuStaticModelAsset',
+            ].includes(assetType)) {
+
+                fetch(`/api/get_asset_static_model?name=${name}`)
+                    .then(res => res.arrayBuffer())
+                    .then(data => {
+                        console.log(data.byteLength);
+                    });
+
             } else {
                 const info = document.getElementById('selected-asset-info') as HTMLDivElement;
                 info.innerHTML = '';
@@ -364,12 +374,4 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-    fetch('/api/read_asset_data')   
-        .then(res => res.json())
-        .then(data => {
-            console.log(data);
-        });
-
-
-    // Clear button handler
 }); 

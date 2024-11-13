@@ -17,6 +17,7 @@ declare global {
     function get_asset_texture_binary(asset_name: string, level: number) : ArrayBuffer | null;
     function get_asset_list() : string[];
     function get_asset_compiled_shader(asset_name: string) : CompiledShader
+    function get_asset_static_model(asset_name: string) : ArrayBuffer | null;
     function read_asset_data() : string | null;
 }
 
@@ -166,6 +167,19 @@ const load_patchlib = ()=>{
         return shader;
     }
 
+    const get_asset_static_model = (asset_name: string) => {
+        let bs: ArrayBuffer | null = null;
+        const cb = new NativeCallback((p:NativePointer, size:number) => {
+            bs = p.readByteArray(size)
+        }, 'void', ['pointer', 'int'])
+        new NativeFunction(mod.symbols.get_asset_static_model, 
+            'int', 
+            ['pointer', 'pointer'])(
+                Memory.allocUtf8String(asset_name), 
+                cb)
+        return bs;
+    }
+
     const read_asset_data = () => {
         let data: string | null = null;
         const cb = new NativeCallback((p:NativePointer) => {
@@ -194,6 +208,8 @@ const load_patchlib = ()=>{
 
         get_asset_compiled_shader,
 
+        get_asset_static_model,
+
         read_asset_data,
 
     }
@@ -203,7 +219,12 @@ const load_patchlib = ()=>{
     global.get_asset_texture_info = get_asset_texture_info
     global.get_asset_texture_binary = get_asset_texture_binary
     global.get_asset_list = get_asset_list
+    global.get_asset_static_model = get_asset_static_model
     global.read_asset_data = read_asset_data
+
+
+    // 
+    get_asset_static_model('VuStaticModelAsset/Env/CityC/CityC_z03')
 
     return mod
 }

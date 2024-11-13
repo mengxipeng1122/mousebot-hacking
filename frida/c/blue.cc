@@ -1,115 +1,24 @@
 
 #include <string>
 #include <vector>
+#include <list>
 #include <map>
+#include <sstream>
+
 
 extern "C" void _frida_log(const char* str);
 extern "C" void _frida_hexdump(void* p, size_t len);
 
-#define LOG_INFOS(fmt, ...) do{ \
+#define LOG_INFOS(fmt, ...) do { \
     char buf[1024*8]; \
     snprintf(buf, sizeof(buf), "[%s:%d] " fmt, __FILE__, __LINE__, ##__VA_ARGS__); \
     _frida_log(buf); \
 }while(0)
 
-template<typename T>
-struct VuArray {
-    T* data;
-    size_t size;
-    size_t capacity;
-};
+#include "blue.h"
 
-struct VuJsonContainer {
-    unsigned char _x00[0x20];
-    VuJsonContainer();
-    ~VuJsonContainer();
-};
+int listAllAssets() {
 
-struct VuJsonBinaryReader {
-    VuJsonBinaryReader();
-    unsigned char _x00[0x30];
-    bool loadFromMemory(VuJsonContainer&, void const*, int);
-};
-
-struct VuJsonWriter {
-    unsigned char _x00[0x20];
-    VuJsonWriter();
-    void saveToString(VuJsonContainer const&, std::string&);
-};
-
-struct VuAssetFactory {
-    static VuAssetFactory* mpInterface;
-};
-
-struct VuAssetFileInfo {
-    unsigned char* mData;
-    unsigned char _x04[0x14];
-    unsigned char* ms0;
-    unsigned char* ms1;
-    unsigned char _x20[0x0c];
-    unsigned int  size;
-    unsigned char _x30[0x04];
-    unsigned int  crc;
-    unsigned char _x3c[0x04];
-
-};
-
-struct VuAssetPackFileReader {
-    unsigned char _x00[0x20];
-    std::map<std::string, VuAssetFileInfo> mFileMap;
-    unsigned char _x28[0x50];
-    bool read(char const*, 
-        std::string const&, 
-        std::string const&, 
-        unsigned int&, 
-        unsigned int&, 
-        VuArray<unsigned char>&);
-};
-
-struct VuAssetDB {
-    unsigned char _x00[0x54];
-    VuAssetPackFileReader mPackFileReader;
-};
-
-struct VuAssetFactoryImpl : public VuAssetFactory {
-    int getAssetDBCount();
-    std::string& getAssetDBName(int);
-    VuAssetDB& getAssetDB(std::string const&);
-};
-
-struct VuTextureData {
-    unsigned char _x00[0xc];
-    unsigned int mTotalLevel;
-    VuArray<unsigned char> mData;
-    unsigned char* getLevelData(int);
-    unsigned int getLevelHeight(int);
-    unsigned int getLevelWidth(int);
-    unsigned int getLevelPitch(int);
-    size_t getLevelSize(int);
-};
-
-struct VuOglesTexture {
-    unsigned char _x00[0x1c];
-    unsigned int mGlFormat;
-    unsigned char _x20[0x20];
-    VuTextureData mTextureData;
-    ~VuOglesTexture();
-};
-
-struct VuBinaryDataReader {
-    unsigned char* data;
-    size_t size;
-    size_t offset;
-    VuBinaryDataReader() : data(NULL), size(0), offset(0) {}
-};
-
-struct VuTexture {
-   static VuOglesTexture* loadFromMemory(VuBinaryDataReader&);
-};
-
-
-int listAllAssets()
-{
     VuAssetFactory* factory = VuAssetFactory::mpInterface;
     LOG_INFOS("listAllAssets %p", factory);
     VuAssetFactoryImpl* impl = (VuAssetFactoryImpl*)factory;
@@ -367,6 +276,101 @@ int get_asset_compiled_shader(
     return find_asset(asset_name, _get_asset_compiled_shader_cb, (void*)cb);
 }
 
+void _iterate_static_model_node(std::list<VuGfxSceneNode*>& nodes, int level) {
+    std::string prefix(level*2, ' ');
+    for(std::list<VuGfxSceneNode*>::iterator it = nodes.begin(); it != nodes.end(); ++it){
+        VuGfxSceneNode* node = *it;
+        std::list<VuGfxSceneNode*>& children = node->mChildren;
+        LOG_INFOS("%snode: %p name %s (%zu)", prefix.c_str(), node, node->mName.c_str(), children.size());
+        VuGfxSceneMeshInstance* mesh_instance = node->mpMeshInstance;
+        _iterate_static_model_node(children, level+1);
+    }
+}
+
+void _get_asset_static_model_cb(unsigned char* pData, int size, void* user_data) {
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+    _frida_hexdump(pData, 0x10);
+    VuBinaryDataReader reader;
+    reader.data = pData;
+    reader.size = size;
+    reader.offset = 0;
+    VuStaticModelAsset* model = CreateVuStaticModelAsset();
+    model->load(reader);
+    _frida_hexdump((void*)model, sizeof(VuStaticModelAsset));
+
+    VuGfxStaticScene* scene = model->mScene;
+    LOG_INFOS("scene: %p", scene);
+    if(scene!=NULL){
+        _frida_hexdump((void*)scene, sizeof(VuGfxStaticScene));
+    }
+
+    std::list<VuGfxSceneNode*>& nodes = scene->mNodes;
+    _iterate_static_model_node(nodes, 0);
+
+    std::vector<VuGfxSceneMesh*>& meshes = scene->mMeshes;
+    std::vector<VuGfxSceneChunk*>& chunks = scene->mChunks;
+    LOG_INFOS("meshes: %zu", meshes.size());
+    for(std::vector<VuGfxSceneMesh*>::iterator it = meshes.begin(); it != meshes.end(); ++it){
+        VuGfxSceneMesh* mesh = *it;
+        LOG_INFOS("mesh: %p name: %s", mesh, mesh->mName.c_str());
+        LOG_INFOS("aabb: min: %f %f %f %f max: %f %f %f %f", 
+            mesh->mAabb.mMin.x, mesh->mAabb.mMin.y, mesh->mAabb.mMin.z, mesh->mAabb.mMin.w,
+            mesh->mAabb.mMax.x, mesh->mAabb.mMax.y, mesh->mAabb.mMax.z, mesh->mAabb.mMax.w);
+
+        std::list<VuGfxSceneMeshPart*>& parts = mesh->mMeshParts;
+        LOG_INFOS("parts: %zu", parts.size());
+        for(std::list<VuGfxSceneMeshPart*>::iterator it = parts.begin(); it != parts.end(); ++it){
+            VuGfxSceneMeshPart* part = *it;
+            LOG_INFOS("part: %p", part);
+        }
+
+    }
+    LOG_INFOS("chunks: %zu", chunks.size());
+    for(std::vector<VuGfxSceneChunk*>::iterator it = chunks.begin(); it != chunks.end(); ++it){
+        VuGfxSceneChunk* chunk = *it;
+        LOG_INFOS("chunk: %p", chunk);
+        VuGfxSortMesh* sort_mesh = chunk->mpSortMesh;
+        LOG_INFOS("sort_mesh: %p", sort_mesh);
+        VuVertexBuffer* vertex_buffer = chunk->mpVertexBuffer;
+        LOG_INFOS("vertex_buffer: %p", vertex_buffer);
+        _frida_hexdump((void*)vertex_buffer, sizeof(VuVertexBuffer));
+        _frida_hexdump(vertex_buffer->pBuffer, 0x60);
+        VuIndexBuffer* index_buffer = chunk->mpIndexBuffer;
+        LOG_INFOS("index_buffer: %p", index_buffer);
+        _frida_hexdump((void*)index_buffer, sizeof(VuIndexBuffer));
+        _frida_hexdump(index_buffer->pBuffer, 0x20);
+    }
+
+    std::vector<VuGfxSceneShader*>& shaders = scene->mShader;
+    LOG_INFOS("shaders: %zu", shaders.size());
+    for(std::vector<VuGfxSceneShader*>::iterator it = shaders.begin(); it != shaders.end(); ++it){
+        VuGfxSceneShader* shader = *it;
+        LOG_INFOS("shader: %p", shader);
+        //_frida_hexdump((void*)shader, sizeof(VuGfxSceneShader));
+        VuShaderProgram* shader_program = shader->mpShaderProgram;
+        //LOG_INFOS("shader_program: %p", shader_program);
+        //_frida_hexdump((void*)shader_program, sizeof(VuShaderProgram));
+        // for (int i=0; i<3; i++){
+        //     VuGfxSortMaterial* material = shader->mpSortMaterial[i];
+        //     LOG_INFOS("material: %p", material);
+        //     _frida_hexdump((void*)material, 0x20);
+        // }
+    }
+
+    model->unload();
+    delete model;
+    model=NULL;
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_static_model(
+    const char* asset_name, 
+    void (*cb)(unsigned char* pData, int size)
+    ) {
+    return find_asset(asset_name, _get_asset_static_model_cb, (void*)cb);
+}
+
+
 
 extern "C" __attribute__((visibility("default")))
 int get_asset_list (
@@ -384,7 +388,7 @@ int get_asset_list (
             std::string key = it->first;
             cb(key.c_str());
             VuAssetFileInfo& value = it->second;
-            _frida_hexdump(&value, sizeof(VuAssetFileInfo));
+            _frida_hexdump((void*)&value, sizeof(VuAssetFileInfo));
             LOG_INFOS("mData: %p", value.mData);
             LOG_INFOS("ms0: %p", value.ms0);
             LOG_INFOS("ms1: %p", value.ms1);
