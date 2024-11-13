@@ -15,3 +15,8 @@ export interface TextureInfo {
     pitch: number;
     glFormat: number;
 }
+
+export interface CompiledShader {
+    vertex_shader: string ;
+    fragment_shader: string ;
+}

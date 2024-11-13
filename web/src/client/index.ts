@@ -1,10 +1,45 @@
 import io from 'socket.io-client';
 
-import { LogEntry, TextureInfo } from '../common';
+import { TextureInfo } from '../common';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const logTableBody = document.getElementById('log') as HTMLTableElement;
+    const assetsTableBody = document.getElementById('assets') as HTMLTableElement;
     const selectedAssetDiv = document.getElementById('selected-asset') as HTMLDivElement;
+
+    function get_hexdump_from_arraybuffer(data: ArrayBuffer) {
+        // Convert ArrayBuffer to hex dump
+        const bytes = new Uint8Array(data);
+        let hexDump = '';
+        let asciiDump = '';
+        
+        for (let i = 0; i < bytes.length; i++) {
+            // Add offset at start of each line
+            if (i % 16 === 0) {
+                if (i > 0) {
+                    hexDump += `  ${asciiDump}\n`;
+                    asciiDump = '';
+                }
+                hexDump += `${i.toString(16).padStart(8, '0')}: `;
+            }
+            
+            // Add hex value
+            hexDump += `${bytes[i].toString(16).padStart(2, '0')} `;
+            
+            // Add ASCII character if printable, otherwise add dot
+            asciiDump += bytes[i] >= 32 && bytes[i] <= 126 ? 
+                String.fromCharCode(bytes[i]) : '.';
+        }
+        
+        // Add padding and final ASCII section for last line
+        const remaining = bytes.length % 16;
+        if (remaining > 0) {
+            hexDump += '   '.repeat(16 - remaining);
+            hexDump += `  ${asciiDump}`;
+        }
+        return hexDump;
+    }
+
+
 
     function drawTexture(data: ArrayBuffer, width: number, height: number, pitch: number, glFormat: number, canvas: HTMLCanvasElement) {
     // Create WebGL context
@@ -193,6 +228,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 <b>${name}</b><br>
             `;
 
+            const downloadButton = document.createElement('button');
+            downloadButton.innerHTML = 'Download';
+            downloadButton.addEventListener('click', () => {
+                fetch(`/api/get_asset_binary?name=${name}`)
+                    .then(res => res.arrayBuffer())
+                    .then(data => {
+                        const blob = new Blob([data], { type: 'application/octet-stream' });
+                        const filename = name.replace(/\//g, '_')+'.bin';
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+
+                    });
+            });
+            selectedAssetDiv.appendChild(downloadButton);
+
             const assetType = name.split('/')[0];
 
             const info = document.getElementById('selected-asset-info') as HTMLDivElement;
@@ -203,7 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     .then(res => res.json())
                     .then(data => {
                         console.log(data);
-                        const info = document.getElementById('selected-asset-info') as HTMLDivElement;
                         info.innerHTML = `
                             <div class="json-view">
                                 ${syntaxHighlight(data)}
@@ -215,13 +270,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 [
                     'VuProjectAsset',
                     'VuDBAsset',
+                    'VuShaderAsset',
+                    'VuStringAsset',
+                    'VuPfxAsset',
+                    'VuTemplateAsset',
                 ].includes(assetType)
             ) {
                 fetch(`/api/get_asset_json?name=${name}`)
                     .then(res => res.json())
                     .then(data => {
                         console.log(data);
-                        const info = document.getElementById('selected-asset-info') as HTMLDivElement;
                         info.innerHTML = `
                             <div class="json-view">
                                 ${syntaxHighlight(data)}
@@ -229,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                     })
                     .catch(error => {
-                        const info = document.getElementById('selected-asset-info') as HTMLDivElement;
                         info.innerHTML = `
                             <div class="json-view" style="color: #f44336;">
                                 Error loading JSON data: ${error.message}
@@ -260,9 +317,36 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                         }
                     });
+            } else if ([
+                'VuCompiledShaderAsset',
+            ].includes(assetType)) {
+                fetch(`/api/get_asset_compiled_shader?name=${name}`)
+                    .then(res => res.json())
+                    .then(shader => {
+                        info.innerHTML = `
+                            <p>Vertex Shader</p>
+                            <div class="json-view">
+                                ${shader.vertex_shader}
+                            </div>
+                            <p>Fragment Shader</p>
+                            <div class="json-view">
+                                ${shader.fragment_shader}
+                            </div>
+                        `;
+                    });
             } else {
                 const info = document.getElementById('selected-asset-info') as HTMLDivElement;
                 info.innerHTML = '';
+
+                fetch(`/api/get_asset_binary?name=${name}`)
+                    .then(res => res.arrayBuffer())
+                    .then(data => {
+                        // Convert ArrayBuffer to hex dump
+
+                        const hexDump = get_hexdump_from_arraybuffer(data);
+
+                        info.innerHTML = `<pre>${hexDump}</pre>`;
+                    });
             }
         });
 
@@ -276,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then((assets   : string[]) => {
             for (const asset of assets) {
                 const row = createTableRow(asset);
-                logTableBody.appendChild(row);
+                assetsTableBody.appendChild(row);
             }
         });
 

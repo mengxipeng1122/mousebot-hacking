@@ -4,6 +4,7 @@ import fs from 'fs';
 import { 
   LogEntry,
   TextureInfo,
+  CompiledShader,
 } from './common';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
@@ -177,6 +178,18 @@ async function connect_frida() {
           res.send(data);
         } catch (error) {
             console.error('Error in /api/read_asset_data:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
+      app.get('/api/get_asset_compiled_shader', async (req, res) => {
+        try {
+          const { name } = req.query;
+          const shader = await script.exports.get_asset_compiled_shader(name as string) as CompiledShader;
+          res.set('Content-Type', 'application/json');
+          res.send(JSON.stringify(shader));
+        } catch (error) {
+            console.error('Error in /api/get_asset_compiled_shader:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
       });

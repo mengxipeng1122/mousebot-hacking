@@ -350,6 +350,24 @@ int get_asset_texture_binary (
     return find_asset(asset_name, _get_asset_texture_binary_cb, (void*)&data);
 }
 
+void _get_asset_compiled_shader_cb(unsigned char* pData, int size, void* user_data) {
+    void (*cb)(const char*, const char*) = (void (*)(const char*, const char*))user_data;
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+    const char* vertex_shader = (const char*)pData;
+    int vertex_shader_size = strlen(vertex_shader);
+    const char* fragment_shader = (const char*)pData + vertex_shader_size + 1;
+    cb(vertex_shader, fragment_shader);
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_compiled_shader(
+    const char* asset_name, 
+    void (*cb)(const char*, const char*)
+    ) {
+    return find_asset(asset_name, _get_asset_compiled_shader_cb, (void*)cb);
+}
+
+
 extern "C" __attribute__((visibility("default")))
 int get_asset_list (
     void (*cb)(const char* name)

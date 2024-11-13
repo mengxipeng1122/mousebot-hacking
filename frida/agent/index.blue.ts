@@ -5,6 +5,7 @@ import { get } from "node:http"
 import { 
     LogEntry, 
     TextureInfo,
+    CompiledShader,
 } from './common.js';
 
 const soname = "libBlue.so"
@@ -15,6 +16,7 @@ declare global {
     function get_asset_texture_info(asset_name: string) : TextureInfo[];
     function get_asset_texture_binary(asset_name: string, level: number) : ArrayBuffer | null;
     function get_asset_list() : string[];
+    function get_asset_compiled_shader(asset_name: string) : CompiledShader
     function read_asset_data() : string | null;
 }
 
@@ -46,6 +48,7 @@ const parse_std_string = (mod: MyFrida.PATHLIB_INFO_TYPE, str: NativePointer) : 
 }
 
 const load_patchlib = ()=>{
+
     const mod = libblueinfo.load('/data/local/tmp/libblue.so',[
         soname
     ],{
@@ -140,6 +143,29 @@ const load_patchlib = ()=>{
         return names;
     }
 
+    const get_asset_compiled_shader = (asset_name: string) => {
+        let shader: CompiledShader  ={
+            vertex_shader: '',
+            fragment_shader: '',
+        }
+        const cb = new NativeCallback((pVertex:NativePointer, pFragment:NativePointer) => {
+            const vertex_shader = pVertex.readUtf8String()
+            const fragment_shader = pFragment.readUtf8String()
+            if (vertex_shader && fragment_shader) {
+                shader = {
+                    vertex_shader,
+                    fragment_shader,
+                };
+            }
+        }, 'void', ['pointer', 'pointer'])
+        new NativeFunction(mod.symbols.get_asset_compiled_shader, 
+            'int', 
+            ['pointer', 'pointer'])(
+                Memory.allocUtf8String(asset_name), 
+                cb)
+        return shader;
+    }
+
     const read_asset_data = () => {
         let data: string | null = null;
         const cb = new NativeCallback((p:NativePointer) => {
@@ -166,6 +192,8 @@ const load_patchlib = ()=>{
 
         get_asset_list,
 
+        get_asset_compiled_shader,
+
         read_asset_data,
 
     }
@@ -176,9 +204,6 @@ const load_patchlib = ()=>{
     global.get_asset_texture_binary = get_asset_texture_binary
     global.get_asset_list = get_asset_list
     global.read_asset_data = read_asset_data
-
-    // 
-    // read_asset_data()
 
     return mod
 }
