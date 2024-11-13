@@ -2,6 +2,8 @@ import "ts-frida"
 import {mod as libblueinfo} from './modinfos/libblue.js'
 import { get } from "node:http"
 
+import { LogEntry } from './common.js';
+
 const soname = "libBlue.so"
 
 declare global {
@@ -162,8 +164,6 @@ const load_patchlib = ()=>{
     global.get_asset_json = get_asset_json
     global.get_asset_texture_info = get_asset_texture_info
     global.get_asset_texture_binary = get_asset_texture_binary
-    // get_asset_json('VuProjectAsset', 'Screens/DemoBackground', '')
-
 
     return mod
 }
@@ -190,16 +190,17 @@ const hook_game = (mod: MyFrida.PATHLIB_INFO_TYPE) => {
                     const crc = thiz.args5.readU32()
                     const arr = parse_vu_array_unsigned_char(mod, thiz.args6)
                     console.log(tstr, `${asset_type}/${asset_name} ${asset_lang} type: ${type}, crc: ${crc} ${arr?.byteLength}`)
+                    const data : LogEntry = {
+                        assetType: asset_type ?? '',
+                        assetName: asset_name ?? '',
+                        assetLang: asset_lang ?? '',
+                        type: type.toString(),
+                        crc:ptr(crc).toString(),
+                        size:arr?.byteLength ?? 0,
+                    }
                     send({
                         type:'asset_read',
-                        data: {
-                            asset_type,
-                            asset_name,
-                            asset_lang,
-                            type,
-                            crc:ptr(crc),
-                            size:arr?.byteLength,
-                        }
+                        data,
                     });
 
                     // if(asset_type && ['VuProjectAsset' ].includes(asset_type) ) {

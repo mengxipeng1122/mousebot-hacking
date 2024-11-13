@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { LogEntry } from './common';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
 
@@ -15,7 +16,7 @@ const fridaScriptFile = path.join(__dirname, '..', '..', 'frida', '_agent.js');
 
 async function connect_frida() {
   // Functions to be called from Frida script
-  function handleAssetRead(data: any) {
+  function handleAssetRead(data: LogEntry) {
       io.emit('asset_read', data);
   }
 
@@ -49,7 +50,7 @@ async function connect_frida() {
               const payload = message.payload;
               switch (payload.type) {
                   case 'asset_read':
-                      handleAssetRead(payload.data);
+                      handleAssetRead(payload.data as LogEntry);
                       break;
                   default:
                       console.log('Message from script:', message);

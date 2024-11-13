@@ -4,6 +4,7 @@ import 'ts-frida'
 
 import {mod as modpatchgameinfo} from './modinfos/libpatchgame.js'
 
+
 type HOOK_TYPE = {
     p: NativePointer,
     name: string,
