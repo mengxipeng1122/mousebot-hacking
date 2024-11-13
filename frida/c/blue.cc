@@ -371,6 +371,127 @@ int get_asset_static_model(
 }
 
 
+void _get_asset_static_model_chunk_count_cb(unsigned char* pData, int size, void* user_data) {
+    void (*cb)(int count) = (void (*)(int count))user_data;
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+    VuBinaryDataReader reader;
+    reader.data = pData;
+    reader.size = size;
+    reader.offset = 0;
+    VuStaticModelAsset* model = CreateVuStaticModelAsset();
+    model->load(reader);
+
+    VuGfxStaticScene* scene = model->mScene;
+
+    std::vector<VuGfxSceneChunk*>& chunks = scene->mChunks;
+    LOG_INFOS("chunks: %zu", chunks.size());
+    cb(chunks.size());
+
+    model->unload();
+    delete model;
+    model=NULL;
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_static_model_chunk_count(
+    const char* asset_name, 
+    void (*cb)(int count)
+    ) {
+    return find_asset(asset_name, _get_asset_static_model_chunk_count_cb, (void*)cb);
+}
+
+
+struct _get_asset_static_model_chunk_vertex_buffer_cb_data {
+    int chunk_index;
+    void (*cb)(unsigned char* pData, int size);
+};
+
+void _get_asset_static_model_chunk_vertex_buffer_cb(unsigned char* pData, int size, void* user_data) {
+    _get_asset_static_model_chunk_vertex_buffer_cb_data* cb_data = (_get_asset_static_model_chunk_vertex_buffer_cb_data*)user_data;
+    int chunk_index = cb_data->chunk_index;
+    void (*cb)(unsigned char* pData, int size) = cb_data->cb;
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+    VuBinaryDataReader reader;
+    reader.data = pData;
+    reader.size = size;
+    reader.offset = 0;
+    VuStaticModelAsset* model = CreateVuStaticModelAsset();
+    model->load(reader);
+
+    VuGfxStaticScene* scene = model->mScene;
+
+    std::vector<VuGfxSceneChunk*>& chunks = scene->mChunks;
+    LOG_INFOS("chunks: %zu", chunks.size());
+    if(chunk_index < chunks.size()){
+        std::vector<VuGfxSceneChunk*>::iterator it = chunks.begin() + chunk_index;
+        VuGfxSceneChunk* chunk = *it;
+        VuGfxSortMesh* sort_mesh = chunk->mpSortMesh;
+        VuVertexBuffer* vertex_buffer = chunk->mpVertexBuffer;
+        cb(vertex_buffer->pBuffer, vertex_buffer->size);
+    }
+    model->unload();
+    delete model;
+    model=NULL;
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_static_model_chunk_vertex_buffer(
+    const char* asset_name, 
+    int chunk_index,
+    void (*cb)(unsigned char* pData, int size)
+    ) {
+    _get_asset_static_model_chunk_vertex_buffer_cb_data data;
+    data.chunk_index = chunk_index;
+    data.cb = cb;
+    return find_asset(asset_name, _get_asset_static_model_chunk_vertex_buffer_cb, (void*)&data);
+}
+
+struct _get_asset_static_model_chunk_index_buffer_cb_data {
+    int chunk_index;
+    void (*cb)(unsigned char* pData, int size);
+};
+
+void _get_asset_static_model_chunk_index_buffer_cb(unsigned char* pData, int size, void* user_data) {
+    _get_asset_static_model_chunk_index_buffer_cb_data* cb_data = (_get_asset_static_model_chunk_index_buffer_cb_data*)user_data;
+    int chunk_index = cb_data->chunk_index;
+    void (*cb)(unsigned char* pData, int size) = cb_data->cb;
+    LOG_INFOS("data: %p %zu bytes", pData, size);
+    VuBinaryDataReader reader;
+    reader.data = pData;
+    reader.size = size;
+    reader.offset = 0;
+    VuStaticModelAsset* model = CreateVuStaticModelAsset();
+    model->load(reader);
+
+    VuGfxStaticScene* scene = model->mScene;
+
+    std::vector<VuGfxSceneChunk*>& chunks = scene->mChunks;
+    LOG_INFOS("chunks: %zu", chunks.size());
+    if(chunk_index < chunks.size()){
+        std::vector<VuGfxSceneChunk*>::iterator it = chunks.begin() + chunk_index;
+        VuGfxSceneChunk* chunk = *it;
+        VuGfxSortMesh* sort_mesh = chunk->mpSortMesh;
+        VuIndexBuffer* index_buffer = chunk->mpIndexBuffer;
+        cb(index_buffer->pBuffer, index_buffer->size);
+    }
+    model->unload();
+    delete model;
+    model=NULL;
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_static_model_chunk_index_buffer(
+    const char* asset_name, 
+    int chunk_index,
+    void (*cb)(unsigned char* pData, int size)
+    ) {
+    _get_asset_static_model_chunk_index_buffer_cb_data data;
+    data.chunk_index = chunk_index;
+    data.cb = cb;
+    return find_asset(asset_name, _get_asset_static_model_chunk_index_buffer_cb, (void*)&data);
+}
+
+
 
 extern "C" __attribute__((visibility("default")))
 int get_asset_list (

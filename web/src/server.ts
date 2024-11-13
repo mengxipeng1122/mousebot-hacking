@@ -206,6 +206,43 @@ async function connect_frida() {
         }
       });
 
+      app.get('/api/get_asset_static_model_chunk_count', async (req, res) => {
+        try {
+          const { name } = req.query;
+          const count = await script.exports.get_asset_static_model_chunk_count(name as string) as number;
+          res.send(count.toString());
+        } catch (error) {
+            console.error('Error in /api/get_asset_static_model_chunk_count:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
+      app.get('/api/get_asset_static_model_chunk_vertex_buffer', async (req, res) => {
+        try {
+          const { name, chunk_index } = req.query;
+          const chunk_index_num = parseInt(chunk_index as string);
+          const buffer = await script.exports.get_asset_static_model_chunk_vertex_buffer(name as string, chunk_index_num);
+          res.set('Content-Type', 'application/octet-stream');
+          res.send(buffer);
+        } catch (error) {
+            console.error('Error in /api/get_asset_static_model_chunk_vertex_buffer:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
+      app.get('/api/get_asset_static_model_chunk_index_buffer', async (req, res) => {
+        try {
+          const { name, chunk_index } = req.query;
+          const chunk_index_num = parseInt(chunk_index as string);
+          const buffer = await script.exports.get_asset_static_model_chunk_index_buffer(name as string, chunk_index_num);
+          res.set('Content-Type', 'application/octet-stream');
+          res.send(buffer);
+        } catch (error) {
+            console.error('Error in /api/get_asset_static_model_chunk_index_buffer:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
     const ret = await script.exports.invoke_init();
     console.log('init:', ret);
 

@@ -251,6 +251,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const assetType = name.split('/')[0];
 
+            if ([
+                'VuStaticModelAsset',
+            ].includes(assetType)) {
+                const link = document.createElement('a');
+                link.href = `./show_asset_static_model.html?name=${name}`;
+                link.innerHTML = 'Link';
+                selectedAssetDiv.appendChild(link);
+            }
+
+
             const info = document.getElementById('selected-asset-info') as HTMLDivElement;
             info.innerHTML = '';
 
@@ -338,10 +348,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 'VuStaticModelAsset',
             ].includes(assetType)) {
 
-                fetch(`/api/get_asset_static_model?name=${name}`)
-                    .then(res => res.arrayBuffer())
-                    .then(data => {
-                        console.log(data.byteLength);
+                fetch(`/api/get_asset_static_model_chunk_count?name=${name}`)
+                    .then(res => res.json())
+                    .then(count => {
+                        console.log(count);
+
+                        if(count>0){
+                            const i = 0;
+                            fetch(`/api/get_asset_static_model_chunk_vertex_buffer?name=${name}&chunk_index=${i}`)
+                                .then(res => res.arrayBuffer())
+                                .then(vertex_buffer => {
+                                    console.log(vertex_buffer.byteLength);
+                                    fetch(`/api/get_asset_static_model_chunk_index_buffer?name=${name}&chunk_index=${i}`)
+                                        .then(res => res.arrayBuffer())
+                                        .then(index_buffer => {
+                                            console.log(index_buffer.byteLength);
+                                        });
+                                });
+                        }
+
+
+                        info.innerHTML = `
+                            <p>Chunk Count: ${count}</p>
+                        `;
                     });
 
             } else {

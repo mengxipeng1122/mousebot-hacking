@@ -18,6 +18,9 @@ declare global {
     function get_asset_list() : string[];
     function get_asset_compiled_shader(asset_name: string) : CompiledShader
     function get_asset_static_model(asset_name: string) : ArrayBuffer | null;
+    function get_asset_static_model_chunk_count(asset_name: string) : number;
+    function get_asset_static_model_chunk_vertex_buffer(asset_name: string, chunk_index: number) : ArrayBuffer | null;
+    function get_asset_static_model_chunk_index_buffer(asset_name: string, chunk_index: number) : ArrayBuffer | null;
     function read_asset_data() : string | null;
 }
 
@@ -180,6 +183,47 @@ const load_patchlib = ()=>{
         return bs;
     }
 
+    const get_asset_static_model_chunk_count = (asset_name: string) => {
+        let count: number = 0;
+        const cb = new NativeCallback((c:number) => {
+            count = c;
+        }, 'void', ['int'])
+        new NativeFunction(mod.symbols.get_asset_static_model_chunk_count, 
+            'int', 
+            ['pointer', 'pointer'])(
+                Memory.allocUtf8String(asset_name), 
+                cb)
+        return count;
+    }
+
+    const get_asset_static_model_chunk_vertex_buffer = (asset_name: string, chunk_index: number) => {
+        let bs: ArrayBuffer | null = null;
+        const cb = new NativeCallback((p:NativePointer, size:number) => {
+            bs = p.readByteArray(size)
+        }, 'void', ['pointer', 'int'])
+        new NativeFunction(mod.symbols.get_asset_static_model_chunk_vertex_buffer, 
+            'int', 
+            ['pointer', 'int', 'pointer'])(
+                Memory.allocUtf8String(asset_name), 
+                chunk_index,
+                cb)
+        return bs;
+    }
+
+    const get_asset_static_model_chunk_index_buffer = (asset_name: string, chunk_index: number) => {
+        let bs: ArrayBuffer | null = null;
+        const cb = new NativeCallback((p:NativePointer, size:number) => {
+            bs = p.readByteArray(size)
+        }, 'void', ['pointer', 'int'])
+        new NativeFunction(mod.symbols.get_asset_static_model_chunk_index_buffer, 
+            'int', 
+            ['pointer', 'int', 'pointer'])(
+                Memory.allocUtf8String(asset_name), 
+                chunk_index,
+                cb)
+        return bs;
+    }
+
     const read_asset_data = () => {
         let data: string | null = null;
         const cb = new NativeCallback((p:NativePointer) => {
@@ -210,6 +254,12 @@ const load_patchlib = ()=>{
 
         get_asset_static_model,
 
+        get_asset_static_model_chunk_count,
+
+        get_asset_static_model_chunk_vertex_buffer,
+
+        get_asset_static_model_chunk_index_buffer,
+
         read_asset_data,
 
     }
@@ -220,6 +270,9 @@ const load_patchlib = ()=>{
     global.get_asset_texture_binary = get_asset_texture_binary
     global.get_asset_list = get_asset_list
     global.get_asset_static_model = get_asset_static_model
+    global.get_asset_static_model_chunk_count = get_asset_static_model_chunk_count
+    global.get_asset_static_model_chunk_vertex_buffer = get_asset_static_model_chunk_vertex_buffer
+    global.get_asset_static_model_chunk_index_buffer = get_asset_static_model_chunk_index_buffer
     global.read_asset_data = read_asset_data
 
 
