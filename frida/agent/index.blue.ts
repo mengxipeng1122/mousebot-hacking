@@ -10,10 +10,12 @@ import {
 const soname = "libBlue.so"
 
 declare global {
-    function get_asset_binary(asset_type: string, asset_name: string, asset_lang: string) : ArrayBuffer | null;
-    function get_asset_json(asset_type: string, asset_name: string, asset_lang: string) : string | null;
-    function get_asset_texture_info(asset_type: string, asset_name: string, asset_lang: string) : TextureInfo[];
-    function get_asset_texture_binary(asset_type: string, asset_name: string, asset_lang: string, level: number) : ArrayBuffer | null;
+    function get_asset_binary(asset_name: string) : ArrayBuffer | null;
+    function get_asset_json(asset_name: string) : string | null;
+    function get_asset_texture_info(asset_name: string) : TextureInfo[];
+    function get_asset_texture_binary(asset_name: string, level: number) : ArrayBuffer | null;
+    function get_asset_list() : string[];
+    function read_asset_data() : string | null;
 }
 
 type HOOK_TYPE = {
@@ -54,7 +56,7 @@ const load_patchlib = ()=>{
         new NativeFunction(mod.symbols.init, 'int', [])()
     }
 
-    const get_asset_binary = (asset_type: string, asset_name: string, asset_lang: string) => {
+    const get_asset_binary = (asset_name: string) => {
             let bs: ArrayBuffer | null = null;
 
             const cb = new NativeCallback((p:NativePointer, size:number) => {
@@ -66,16 +68,14 @@ const load_patchlib = ()=>{
             if (mod.symbols.get_asset_binary) {
                 new NativeFunction(mod.symbols.get_asset_binary, 
                     'int', 
-                    ['pointer', 'pointer', 'pointer', 'pointer'])(
-                        Memory.allocUtf8String(asset_type), 
+                    ['pointer', 'pointer'])(
                         Memory.allocUtf8String(asset_name), 
-                        Memory.allocUtf8String(asset_lang), 
                         cb)
             }
             return bs;
         };
 
-    const get_asset_json = (asset_type: string, asset_name: string, asset_lang: string) : string | null => {
+    const get_asset_json = (asset_name: string) : string | null => {
         let json: string | null = null;
 
         const cb = new NativeCallback((p:NativePointer) => {
@@ -84,15 +84,13 @@ const load_patchlib = ()=>{
 
         new NativeFunction(mod.symbols.get_asset_json, 
             'int', 
-            ['pointer', 'pointer', 'pointer', 'pointer'])(
-                Memory.allocUtf8String(asset_type), 
+            ['pointer', 'pointer'])(
                 Memory.allocUtf8String(asset_name), 
-                Memory.allocUtf8String(asset_lang), 
                 cb)
         return json;
     }
 
-    const get_asset_texture_info = (asset_type: string, asset_name: string, asset_lang: string) => {
+    const get_asset_texture_info = (asset_name: string) => {
         let images: TextureInfo[] = [];
 
         const cb = new NativeCallback((size:number, level:number, width:number, height:number, pitch:number, glFormat:number) => {
@@ -108,16 +106,14 @@ const load_patchlib = ()=>{
 
         new NativeFunction(mod.symbols.get_asset_texture_info, 
             'int', 
-            ['pointer', 'pointer', 'pointer', 'pointer'])(
-                Memory.allocUtf8String(asset_type), 
+            ['pointer', 'pointer'])(
                 Memory.allocUtf8String(asset_name), 
-                Memory.allocUtf8String(asset_lang), 
                 cb)
         console.log(`get_asset_texture_info: ${images.length} ${JSON.stringify(images)}`)
         return images;
     }
 
-    const get_asset_texture_binary = (asset_type: string, asset_name: string, asset_lang: string, level: number) => {
+    const get_asset_texture_binary = (asset_name: string, level: number) => {
         let bs: ArrayBuffer | null = null;
         const cb = new NativeCallback((p:NativePointer, size:number) => {
             bs = p.readByteArray(size)
@@ -125,14 +121,33 @@ const load_patchlib = ()=>{
 
         new NativeFunction(mod.symbols.get_asset_texture_binary, 
             'int', 
-            ['pointer', 'pointer', 'pointer', 'int', 'pointer'])(
-                Memory.allocUtf8String(asset_type), 
+            ['pointer', 'int', 'pointer'])(
                 Memory.allocUtf8String(asset_name), 
-                Memory.allocUtf8String(asset_lang), 
                 level,
                 cb);
         return bs;
     }
+
+    const get_asset_list = () => {
+        let names: string[] = [];
+        const cb = new NativeCallback((pname:NativePointer) => {
+            const name = pname.readUtf8String();
+            if(name) {
+                names.push(name)
+            }
+        }, 'void', ['pointer'])
+        new NativeFunction(mod.symbols.get_asset_list, 'int', ['pointer'])(cb)
+        return names;
+    }
+
+    const read_asset_data = () => {
+        let data: string | null = null;
+        const cb = new NativeCallback((p:NativePointer) => {
+            data = p.readUtf8String();
+        }, 'void', ['pointer'])
+        new NativeFunction(mod.symbols.read_asset_data, 'int', ['pointer'])(cb)
+        return data;
+    }   
 
     rpc.exports = {
         // Add two numbers and return result
@@ -149,12 +164,21 @@ const load_patchlib = ()=>{
 
         get_asset_texture_binary,
 
+        get_asset_list,
+
+        read_asset_data,
+
     }
 
     global.get_asset_binary = get_asset_binary
     global.get_asset_json = get_asset_json
     global.get_asset_texture_info = get_asset_texture_info
     global.get_asset_texture_binary = get_asset_texture_binary
+    global.get_asset_list = get_asset_list
+    global.read_asset_data = read_asset_data
+
+    // 
+    // read_asset_data()
 
     return mod
 }

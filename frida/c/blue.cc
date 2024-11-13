@@ -42,7 +42,16 @@ struct VuAssetFactory {
 };
 
 struct VuAssetFileInfo {
-    unsigned char _x00[0x40];
+    unsigned char* mData;
+    unsigned char _x04[0x14];
+    unsigned char* ms0;
+    unsigned char* ms1;
+    unsigned char _x20[0x0c];
+    unsigned int  size;
+    unsigned char _x30[0x04];
+    unsigned int  crc;
+    unsigned char _x3c[0x04];
+
 };
 
 struct VuAssetPackFileReader {
@@ -126,7 +135,6 @@ int listAllAssets()
     return 0;
 }
 
-
 extern "C" __attribute__((visibility("default"))) int init() {
     LOG_INFOS("init");
     LOG_INFOS("Hello from frida c");
@@ -166,15 +174,16 @@ extern "C" __attribute__((visibility("default"))) void parse_binary_json(
 }
 
 int find_asset(
-    const char* asset_type, 
-    const char* assert_name, 
-    const char* asset_lang,
+    const char* asset_name, 
     void (*cb)(unsigned char* pData, int size, void* user_data),
     void* user_data
 ) {
-    std::string type_name(asset_type);
-    std::string file_name(assert_name);
-    std::string lang(asset_lang);
+
+    std::string asset_name_str(asset_name);
+
+    std::string type_name(asset_name_str.substr(0, asset_name_str.find('/')));
+    std::string file_name(asset_name_str.substr(asset_name_str.find('/') + 1));
+    std::string lang("");
 
     VuAssetFactory* vuAssetFactory = VuAssetFactory::mpInterface;
     if(vuAssetFactory == NULL) {
@@ -185,9 +194,7 @@ int find_asset(
     VuAssetFactoryImpl* impl = (VuAssetFactoryImpl*)vuAssetFactory;
 
     std::string name = impl->getAssetDBName(0);
-    LOG_INFOS("name: %s", name.c_str());
     VuAssetDB& db = impl->getAssetDB(name);
-    LOG_INFOS("db: %p", &db);
 
     VuArray<unsigned char> arr;
     arr.data = NULL;
@@ -220,12 +227,10 @@ void _get_asset_binary_cb(unsigned char* pData, int size, void* user_data) {
 
 extern "C" __attribute__((visibility("default")))
 int get_asset_binary(
-    const char* asset_type, 
-    const char* assert_name, 
-    const char* asset_lang,
+    const char* asset_name, 
     void (*cb)(unsigned char* pData, int size)
     ) {
-    return find_asset(asset_type, assert_name, asset_lang, _get_asset_binary_cb, (void*)cb);
+    return find_asset(asset_name, _get_asset_binary_cb, (void*)cb);
 }
 
 void _get_asset_json_cb(unsigned char* pData, int size, void* user_data) {
@@ -263,14 +268,11 @@ void _get_asset_json_cb(unsigned char* pData, int size, void* user_data) {
 
 extern "C" __attribute__((visibility("default")))
 int get_asset_json(
-    const char* asset_type, 
-    const char* assert_name, 
-    const char* asset_lang,
+    const char* asset_name, 
     void (*cb)(const char*)
     ) {
-    return find_asset(asset_type, assert_name, asset_lang, _get_asset_json_cb, (void*)cb);
+    return find_asset(asset_name, _get_asset_json_cb, (void*)cb);
 }
-
 
 void _get_asset_texture_info_cb(unsigned char* pData, int size, void* user_data) {
     LOG_INFOS("data: %p %zu bytes", pData, size);
@@ -299,12 +301,10 @@ void _get_asset_texture_info_cb(unsigned char* pData, int size, void* user_data)
 
 extern "C" __attribute__((visibility("default")))
 int get_asset_texture_info(
-    const char* asset_type, 
-    const char* assert_name, 
-    const char* asset_lang,
+    const char* asset_name, 
     void (*cb)(int size, int level, int width, int height, int pitch, int gl_format)
     ) {
-    return find_asset(asset_type, assert_name, asset_lang, _get_asset_texture_info_cb, (void*)cb);
+    return find_asset(asset_name, _get_asset_texture_info_cb, (void*)cb);
 }
 
 struct _get_asset_texture_binary_cb_data {
@@ -324,7 +324,7 @@ void _get_asset_texture_binary_cb(unsigned char* pData, int size, void* user_dat
     reader.offset = 0;
 
     VuOglesTexture* texture = VuTexture::loadFromMemory(reader);
-    _frida_hexdump((void*)texture, sizeof(VuOglesTexture));
+    // _frida_hexdump((void*)texture, sizeof(VuOglesTexture));
 
     VuTextureData& data = texture->mTextureData;
     LOG_INFOS("Total level: %d", data.mTotalLevel);
@@ -339,15 +339,97 @@ void _get_asset_texture_binary_cb(unsigned char* pData, int size, void* user_dat
 }
 
 extern "C" __attribute__((visibility("default")))
-int get_asset_texture_binary(
-    const char* asset_type, 
-    const char* assert_name, 
-    const char* asset_lang,
+int get_asset_texture_binary (
+    const char* asset_name,
     int level,
     void (*cb)(unsigned char* pData, int size)
     ) {
     _get_asset_texture_binary_cb_data data;
     data.level = level;
     data.cb = cb;
-    return find_asset(asset_type, assert_name, asset_lang, _get_asset_texture_binary_cb, (void*)&data);
+    return find_asset(asset_name, _get_asset_texture_binary_cb, (void*)&data);
+}
+
+extern "C" __attribute__((visibility("default")))
+int get_asset_list (
+    void (*cb)(const char* name)
+){
+    VuAssetFactory* factory = VuAssetFactory::mpInterface;
+    VuAssetFactoryImpl* impl = (VuAssetFactoryImpl*)factory;
+    int count = impl->getAssetDBCount();
+    for(int i=0; i<count; i++){
+        std::string name = impl->getAssetDBName(i);
+        VuAssetDB& db = impl->getAssetDB(name);
+        VuAssetPackFileReader& pack = db.mPackFileReader;
+        std::map<std::string, VuAssetFileInfo>& fileMap = pack.mFileMap;
+        for(std::map<std::string, VuAssetFileInfo>::iterator it = fileMap.begin(); it != fileMap.end(); ++it){
+            std::string key = it->first;
+            cb(key.c_str());
+            VuAssetFileInfo& value = it->second;
+            _frida_hexdump(&value, sizeof(VuAssetFileInfo));
+            LOG_INFOS("mData: %p", value.mData);
+            LOG_INFOS("ms0: %p", value.ms0);
+            LOG_INFOS("ms1: %p", value.ms1);
+            LOG_INFOS("size: %u", value.size);
+            LOG_INFOS("crc: %u", value.crc);
+            // _frida_hexdump(value.ms0, 0x20);
+            // _frida_hexdump(value.ms1, 0x20);
+            // _frida_hexdump(value.mData, 0x20);
+        }
+    }
+    return 0;
+}
+
+extern "C" __attribute__((visibility("default")))
+int read_asset_data(
+    void (*cb)(const char* )
+) {
+
+
+    std::string type_name("Assets");
+    std::string file_name("AssetData");
+    std::string lang("");
+
+    VuAssetFactory* vuAssetFactory = VuAssetFactory::mpInterface;
+    if(vuAssetFactory == NULL) {
+        LOG_INFOS("vuAssetFactory is nullptr");
+        return -1;
+    }
+
+    VuAssetFactoryImpl* impl = (VuAssetFactoryImpl*)vuAssetFactory;
+
+    std::string name = impl->getAssetDBName(0);
+    VuAssetDB& db = impl->getAssetDB(name);
+
+    VuArray<unsigned char> arr;
+    arr.data = NULL;
+    arr.size = 0;
+    arr.capacity = 0;
+    unsigned int hash;
+    unsigned int type;
+    bool success = db.mPackFileReader.read(
+        type_name.c_str(), 
+        file_name,
+        lang,
+        hash, type, arr);
+    if (!success) {
+        LOG_INFOS("read failed: %s, %s", type_name.c_str(), file_name.c_str());
+        return -1;
+    }
+    LOG_INFOS("data: %p %zu bytes", arr.data, arr.size);
+    _frida_hexdump(arr.data, 0x20);
+    VuJsonBinaryReader reader;
+    VuJsonContainer container;
+    bool ret = reader.loadFromMemory(container, arr.data, arr.size);
+    if(ret){
+        std::string str;
+        VuJsonWriter writer;
+        writer.saveToString(container, str);
+        cb(str.c_str());
+    }
+    if(arr.data != NULL) {
+        free(arr.data);
+        arr.data = NULL;
+    }
+    return 0;
 }

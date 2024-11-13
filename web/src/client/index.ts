@@ -5,7 +5,6 @@ import { LogEntry, TextureInfo } from '../common';
 document.addEventListener('DOMContentLoaded', () => {
     const logTableBody = document.getElementById('log') as HTMLTableElement;
     const selectedAssetDiv = document.getElementById('selected-asset') as HTMLDivElement;
-    const clearButton = document.getElementById('clear') as HTMLButtonElement;
 
     function drawTexture(data: ArrayBuffer, width: number, height: number, pitch: number, glFormat: number, canvas: HTMLCanvasElement) {
     // Create WebGL context
@@ -22,20 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-
-    // Check if format is DXT5 (GL_COMPRESSED_RGBA_S3TC_DXT5_EXT)
-    if (glFormat === 0x83F3) { // GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
-        gl.compressedTexImage2D(
-            gl.TEXTURE_2D,
-            0,
-            ext.COMPRESSED_RGBA_S3TC_DXT5_EXT,
-            width,
-            height,
-            0,
-            new Uint8Array(data)
-        );
-    } else {
-        console.error('Unsupported texture format:', glFormat);
+    // Enable ETC1 texture support
+    const etc1ext = gl.getExtension('WEBGL_compressed_texture_etc1');
+    if (!etc1ext) {
+        console.error('WEBGL_compressed_texture_etc1 extension not supported');
         return;
     }
 
@@ -105,8 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Upload texture data
     const pixelData = new Uint8Array(data);
     if ([
-        ext.COMPRESSED_RGBA_S3TC_DXT5_EXT,
-    ].includes(glFormat)) { // GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+        ext.COMPRESSED_RGBA_S3TC_DXT5_EXT as number,
+        etc1ext.COMPRESSED_RGB_ETC1_WEBGL as number, 
+    ].includes(glFormat)) {
         gl.compressedTexImage2D(
             gl.TEXTURE_2D,
             0,
@@ -162,45 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Add column resizing functionality
-    function initializeResizers() {
-        const table = document.querySelector('table');
-        const cols = table!.querySelectorAll('th');
-        let isResizing = false;
-        let currentTh: HTMLElement | null = null;
-        let startX = 0;
-        let startWidth = 0;
-
-        document.querySelectorAll('.resizer').forEach((resizer) => {
-            resizer.addEventListener('mousedown', function(e) {
-                isResizing = true;
-                //currentTh = this.parentElement as HTMLElement;
-                //startX = e.pageX;
-                //startWidth = currentTh.offsetWidth;
-                
-                document.body.classList.add('resizing');
-            });
-        });
-
-        document.addEventListener('mousemove', function(e) {
-            if (!isResizing) return;
-
-            const width = startWidth + (e.pageX - startX);
-            if (currentTh && width > 50) {
-                currentTh.style.width = `${width}px`;
-            }
-        });
-
-        document.addEventListener('mouseup', function() {
-            isResizing = false;
-            currentTh = null;
-            document.body.classList.remove('resizing');
-        });
-    }
-
-    // Initialize both resizers
     initializeSplitter();
-    // initializeResizers();
 
     function syntaxHighlight(json: any): string {
         if (typeof json !== 'string') {
@@ -224,15 +176,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Function to create a table row
-    function createTableRow(entry: LogEntry): HTMLTableRowElement {
+    function createTableRow(asset: string): HTMLTableRowElement {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${entry.assetType}</td>
-            <td>${entry.assetName}</td>
-            <td>${entry.assetLang}</td>
-            <td>${entry.type}</td>
-            <td>${entry.crc}</td>
-            <td>${entry.size}</td>
+            <td>${asset}</td>
         `;
 
         row.addEventListener('click', () => {
@@ -241,24 +188,36 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             row.classList.add('selected-row');
             
-            let name = `${entry.assetType}/${entry.assetName}`;
-            if (entry.assetLang) {
-                name += `/${entry.assetLang}`;
-            }
+            let name = asset;
             selectedAssetDiv.innerHTML = `
                 <b>${name}</b><br>
-                <span>Type: ${entry.type}</span><br>
-                <span>CRC: ${entry.crc}</span><br>
-                <span>Size: ${entry.size}</span>
             `;
 
-            const {assetType, assetName, assetLang} = entry;
+            const assetType = name.split('/')[0];
 
             const info = document.getElementById('selected-asset-info') as HTMLDivElement;
             info.innerHTML = '';
 
-            if (['VuProjectAsset'].includes(assetType)) {
-                fetch(`/api/asset_json?assetType=${assetType}&assetName=${assetName}&assetLang=${assetLang}`)
+            if (name === 'Assets/AssetData') {
+                fetch('/api/read_asset_data')
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log(data);
+                        const info = document.getElementById('selected-asset-info') as HTMLDivElement;
+                        info.innerHTML = `
+                            <div class="json-view">
+                                ${syntaxHighlight(data)}
+                            </div>
+                        `;
+                    });
+            }
+            else if (
+                [
+                    'VuProjectAsset',
+                    'VuDBAsset',
+                ].includes(assetType)
+            ) {
+                fetch(`/api/get_asset_json?name=${name}`)
                     .then(res => res.json())
                     .then(data => {
                         console.log(data);
@@ -278,13 +237,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                     });
             }
-            else if (['VuTextureAsset'].includes(assetType)) {
-                fetch(`/api/asset_texture_info?assetType=${assetType}&assetName=${assetName}&assetLang=${assetLang}`)
+            else if ([
+                'VuTextureAsset',
+            ].includes(assetType)) {
+                console.log(`${name} ${assetType}`);
+                fetch(`/api/get_asset_texture_info?name=${name}`)
                     .then(res => res.json())
                     .then((textures: TextureInfo[]) => {
+                        console.log(textures.length);
                         for (const texture of textures) {
                             const {level, width, height, pitch, glFormat} = texture;
-                            fetch(`/api/asset_texture_binary?assetType=${assetType}&assetName=${assetName}&assetLang=${assetLang}&level=${level}`)
+                            fetch(`/api/get_asset_texture_binary?name=${name}&level=${level}`)
                                 .then(res => res.arrayBuffer())
                                 .then(data => {
                                     console.log(data.byteLength, width, height, pitch, glFormat);
@@ -307,16 +270,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Handle Socket.IO connection
-    const socket = io();
-    
-    socket.on('asset_read', (entry: LogEntry) => {
-        const row = createTableRow(entry);
-        logTableBody.appendChild(row);
-    });
+
+    fetch('/api/asset_list')
+        .then(res => res.json())
+        .then((assets   : string[]) => {
+            for (const asset of assets) {
+                const row = createTableRow(asset);
+                logTableBody.appendChild(row);
+            }
+        });
+
+    fetch('/api/read_asset_data')   
+        .then(res => res.json())
+        .then(data => {
+            console.log(data);
+        });
+
 
     // Clear button handler
-    clearButton.addEventListener('click', () => {
-        logTableBody.innerHTML = '';
-        selectedAssetDiv.textContent = 'No asset selected';
-    });
 }); 

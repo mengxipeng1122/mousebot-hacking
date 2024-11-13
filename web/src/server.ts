@@ -79,19 +79,15 @@ async function connect_frida() {
       }
 
       // Add API endpoint for getting assets
-      app.get('/api/asset', async (req, res) => {
+      app.get('/api/get_asset_binary', async (req, res) => {
           try {
-            const { assetType, assetName, assetLang } = req.query;
+            const { name } = req.query;
             
-            if (!assetType || !assetName) {
+            if (!name) {
                 return res.status(400).json({ error: 'Missing required parameters' });
             }
 
-            const binary = await handleAssetDownload(
-                assetType as string, 
-                assetName as string, 
-                (assetLang as string) || ''
-            );
+            const binary = await script.exports.get_asset_binary(name as string);
 
             if (!binary) {
                 return res.status(404).json({ error: 'Asset not found' });
@@ -108,18 +104,18 @@ async function connect_frida() {
       });
 
       // Add API endpoint for getting assets
-      app.get('/api/asset_json', async (req, res) => {
+      app.get('/api/get_asset_json', async (req, res) => {
           try {
-            const { assetType, assetName, assetLang } = req.query;
+            const { name } = req.query;
             
-            if (!assetType || !assetName) {
+            if (!name) {
                 return res.status(400).json({ error: 'Missing required parameters' });
             }
 
-            const json = await script.exports.get_asset_json(assetType, assetName, assetLang);
+            const json = await script.exports.get_asset_json(name as string);
 
             if (!json) {
-                return res.status(404).json({ error: `Asset not found for ${assetType}, ${assetName}, ${assetLang}` });
+                return res.status(404).json({ error: `Asset not found for ${name}` });
             }
 
             // Send binary data as response
@@ -133,11 +129,11 @@ async function connect_frida() {
       });
 
       // Add API endpoint for getting assets
-      app.get('/api/asset_texture_info', async (req, res) => {
+      app.get('/api/get_asset_texture_info', async (req, res) => {
           try {
-            const { assetType, assetName, assetLang } = req.query;
+            const { name } = req.query;
 
-            const textures_info = await script.exports.get_asset_texture_info(assetType, assetName, assetLang) as TextureInfo[];    
+            const textures_info = await script.exports.get_asset_texture_info(name as string) as TextureInfo[];    
 
             res.set('Content-Type', 'application/json');
             res.send(JSON.stringify(textures_info));
@@ -148,11 +144,11 @@ async function connect_frida() {
         }
       });
 
-      app.get('/api/asset_texture_binary', async (req, res) => {
+      app.get('/api/get_asset_texture_binary', async (req, res) => {
         try {
-          const { assetType, assetName, assetLang, level } = req.query;
+          const { name, level } = req.query;
           const level_num = parseInt(level as string);
-          const binary = await script.exports.get_asset_texture_binary(assetType, assetName, assetLang, level_num);
+          const binary = await script.exports.get_asset_texture_binary(name as string, level_num);
 
           res.set('Content-Type', 'application/octet-stream');
           res.send(binary);
@@ -160,6 +156,28 @@ async function connect_frida() {
         } catch (error) {
             console.error(`Error in /api/asset_texture_binary: `, error);
             res.status(500).json({ error: 'Internal server error' });   
+        }
+      });
+
+      app.get('/api/asset_list', async (req, res) => {
+        try {
+          const assets = await script.exports.get_asset_list();
+          res.set('Content-Type', 'application/json');
+          res.send(JSON.stringify(assets));
+        } catch (error) {
+            console.error('Error in /api/asset_list:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+      });
+
+      app.get('/api/read_asset_data', async (req, res) => {
+        try {
+          const data = await script.exports.read_asset_data();
+          res.set('Content-Type', 'application/json');
+          res.send(data);
+        } catch (error) {
+            console.error('Error in /api/read_asset_data:', error);
+            res.status(500).json({ error: 'Internal server error' });
         }
       });
 
